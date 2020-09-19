@@ -18,13 +18,15 @@
  */
 import React from 'react';
 import { Label as BootstrapLabel } from 'react-bootstrap';
-import styled from '@superset-ui/style';
+import { styled } from '@superset-ui/core';
+import cx from 'classnames';
 
 export type OnClickHandler = React.MouseEventHandler<BootstrapLabel>;
 
 export interface LabelProps {
   key?: string;
   className?: string;
+  id?: string;
   tooltip?: string;
   placement?: string;
   onClick?: OnClickHandler;
@@ -34,41 +36,89 @@ export interface LabelProps {
 }
 
 const SupersetLabel = styled(BootstrapLabel)`
-  &.supersetLabel {
-    border-radius: ${({ theme }) => theme.borderRadius}px;
-    border: none;
-    color: ${({ theme }) => theme.colors.secondary.light5};
-    font-size: ${({ theme }) => theme.typography.sizes.s};
-    font-weight: ${({ theme }) => theme.typography.weights.bold};
-    min-width: ${({ theme }) => theme.gridUnit * 36}px;
-    min-height: ${({ theme }) => theme.gridUnit * 8}px;
-    text-transform: uppercase;
-    margin-left: ${({ theme }) => theme.gridUnit * 4}px;
-    &:first-of-type {
-      margin-left: 0;
-    }
+  /* un-bunch them! */
+  margin-right: ${({ theme }) => theme.gridUnit}px;
+  &:first-of-type {
+    margin-left: 0;
+  }
+  &:last-of-type {
+    margin-right: 0;
+  }
 
-    i {
-      padding: 0 ${({ theme }) => theme.gridUnit * 2}px 0 0;
+  cursor: ${({ onClick }) => (onClick ? 'pointer' : 'default')};
+  transition: background-color ${({ theme }) => theme.transitionTiming}s;
+  &.label-warning {
+    background-color: ${({ theme }) => theme.colors.warning.base};
+    &:hover {
+      background-color: ${({ theme, onClick }) =>
+        onClick ? theme.colors.warning.dark1 : theme.colors.warning.base};
     }
-
-    &.primary {
-      background-color: ${({ theme }) => theme.colors.primary.base};
+  }
+  &.label-danger {
+    background-color: ${({ theme }) => theme.colors.error.base};
+    &:hover {
+      background-color: ${({ theme, onClick }) =>
+        onClick ? theme.colors.error.dark1 : theme.colors.error.base};
     }
-    &.secondary {
-      color: ${({ theme }) => theme.colors.primary.base};
-      background-color: ${({ theme }) => theme.colors.primary.light4};
+  }
+  &.label-success {
+    background-color: ${({ theme }) => theme.colors.success.base};
+    &:hover {
+      background-color: ${({ theme, onClick }) =>
+        onClick ? theme.colors.success.dark1 : theme.colors.success.base};
     }
-    &.danger {
-      background-color: ${({ theme }) => theme.colors.error.base};
+  }
+  &.label-default {
+    background-color: ${({ theme }) => theme.colors.grayscale.base};
+    &:hover {
+      background-color: ${({ theme, onClick }) =>
+        onClick ? theme.colors.grayscale.dark1 : theme.colors.grayscale.base};
+    }
+  }
+  &.label-info {
+    background-color: ${({ theme }) => theme.colors.info};
+    &:hover {
+      background-color: ${({ theme, onClick }) =>
+        onClick ? theme.colors.info.dark1 : theme.colors.info.base};
+    }
+  }
+  &.label-primary {
+    background-color: ${({ theme }) => theme.colors.primary.base};
+    &:hover {
+      background-color: ${({ theme, onClick }) =>
+        onClick ? theme.colors.primary.dark1 : theme.colors.primary.base};
+    }
+  }
+  /* note this is NOT a supported bootstrap label Style... this overrides default */
+  &.label-secondary {
+    background-color: ${({ theme }) => theme.colors.secondary.base};
+    &:hover {
+      background-color: ${({ theme, onClick }) =>
+        onClick ? theme.colors.secondary.dark1 : theme.colors.secondary.base};
     }
   }
 `;
 
 export default function Label(props: LabelProps) {
+  const officialBootstrapStyles = [
+    'success',
+    'warning',
+    'danger',
+    'info',
+    'default',
+    'primary',
+  ];
   const labelProps = {
     ...props,
     placement: props.placement || 'top',
+    bsStyle: officialBootstrapStyles.includes(props.bsStyle || '')
+      ? props.bsStyle
+      : 'default',
+    className: cx(props.className, {
+      [`label-${props.bsStyle}`]: !officialBootstrapStyles.includes(
+        props.bsStyle || '',
+      ),
+    }),
   };
   return <SupersetLabel {...labelProps}>{props.children}</SupersetLabel>;
 }

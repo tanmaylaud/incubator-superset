@@ -34,7 +34,7 @@ import {
 } from 'use-query-params';
 
 import { isEqual } from 'lodash';
-
+import { PartialStylesConfig } from 'src/components/Select';
 import {
   FetchDataConfig,
   Filter,
@@ -227,15 +227,21 @@ export function useListViewState({
   }, [query]);
 
   const applyFilterValue = (index: number, value: any) => {
-    // skip redunundant updates
-    if (internalFilters[index].value === value) {
-      return;
-    }
-    const update = { ...internalFilters[index], value };
-    const updatedFilters = updateInList(internalFilters, index, update);
-    setInternalFilters(updatedFilters);
-    setAllFilters(convertFilters(updatedFilters));
-    gotoPage(0); // clear pagination on filter
+    setInternalFilters(currentInternalFilters => {
+      // skip redunundant updates
+      if (currentInternalFilters[index].value === value) {
+        return currentInternalFilters;
+      }
+      const update = { ...currentInternalFilters[index], value };
+      const updatedFilters = updateInList(
+        currentInternalFilters,
+        index,
+        update,
+      );
+      setAllFilters(convertFilters(updatedFilters));
+      gotoPage(0); // clear pagination on filter
+      return updatedFilters;
+    });
   };
 
   return {
@@ -255,3 +261,20 @@ export function useListViewState({
     applyFilterValue,
   };
 }
+
+export const filterSelectStyles: PartialStylesConfig = {
+  container: (provider, { getValue }) => ({
+    ...provider,
+    // dynamic width based on label string length
+    minWidth: `${Math.min(
+      12,
+      Math.max(5, 3 + getValue()[0].label.length / 2),
+    )}em`,
+  }),
+  control: provider => ({
+    ...provider,
+    borderWidth: 0,
+    boxShadow: 'none',
+    cursor: 'pointer',
+  }),
+};

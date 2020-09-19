@@ -19,7 +19,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { FormControl, FormGroup, Row, Col } from 'react-bootstrap';
-import { t } from '@superset-ui/translation';
+import { t } from '@superset-ui/core';
 
 import Button from 'src/components/Button';
 import FormLabel from 'src/components/FormLabel';
@@ -55,23 +55,29 @@ class SaveQuery extends React.PureComponent {
     this.onLabelChange = this.onLabelChange.bind(this);
     this.onDescriptionChange = this.onDescriptionChange.bind(this);
   }
+
   onSave() {
     this.props.onSave(this.queryPayload());
     this.close();
   }
+
   onUpdate() {
     this.props.onUpdate(this.queryPayload());
     this.close();
   }
+
   onCancel() {
     this.close();
   }
+
   onLabelChange(e) {
     this.setState({ label: e.target.value });
   }
+
   onDescriptionChange(e) {
     this.setState({ description: e.target.value });
   }
+
   queryPayload() {
     return {
       ...this.props.query,
@@ -79,12 +85,15 @@ class SaveQuery extends React.PureComponent {
       description: this.state.description,
     };
   }
+
   close() {
     if (this.saveModal) this.saveModal.close();
   }
-  toggleSave(e) {
-    this.setState({ target: e.target, showSave: !this.state.showSave });
+
+  toggleSave() {
+    this.setState({ showSave: !this.state.showSave });
   }
+
   renderModalBody() {
     const isSaved = !!this.props.query.remoteId;
     return (
@@ -135,7 +144,7 @@ class SaveQuery extends React.PureComponent {
           <Col md={12}>
             {isSaved && (
               <Button
-                bsStyle="primary"
+                buttonStyle="primary"
                 onClick={this.onUpdate}
                 className="m-r-3"
               >
@@ -143,7 +152,7 @@ class SaveQuery extends React.PureComponent {
               </Button>
             )}
             <Button
-              bsStyle={isSaved ? undefined : 'primary'}
+              buttonStyle={isSaved ? undefined : 'primary'}
               onClick={this.onSave}
               className="m-r-3"
             >
@@ -157,6 +166,7 @@ class SaveQuery extends React.PureComponent {
       </FormGroup>
     );
   }
+
   render() {
     return (
       <span className="SaveQuery">
@@ -169,7 +179,7 @@ class SaveQuery extends React.PureComponent {
           backdrop="static"
           triggerNode={
             <Button
-              bsSize="small"
+              buttonSize="small"
               className="toggleSave"
               onClick={this.toggleSave}
             >

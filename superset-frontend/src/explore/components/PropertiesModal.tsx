@@ -18,7 +18,6 @@
  */
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Button,
   Modal,
   Row,
   Col,
@@ -26,18 +25,19 @@ import {
   FormGroup,
   // @ts-ignore
 } from 'react-bootstrap';
+import Button from 'src/components/Button';
 // @ts-ignore
 import Dialog from 'react-bootstrap-dialog';
 import { OptionsType } from 'react-select/src/types';
 import { AsyncSelect } from 'src/components/Select';
 import rison from 'rison';
-import { t } from '@superset-ui/translation';
-import { SupersetClient } from '@superset-ui/connection';
+import { t, SupersetClient } from '@superset-ui/core';
 import Chart from 'src/types/Chart';
 import FormLabel from 'src/components/FormLabel';
 import getClientErrorObject from '../../utils/getClientErrorObject';
 
 export type Slice = {
+  id?: number;
   slice_id: number;
   slice_name: string;
   description: string | null;
@@ -59,21 +59,6 @@ export type WrapperProps = InternalProps & {
   show: boolean;
   animation?: boolean; // for the modal
 };
-
-export default function PropertiesModalWrapper({
-  show,
-  onHide,
-  animation,
-  slice,
-  onSave,
-}: WrapperProps) {
-  // The wrapper is a separate component so that hooks only run when the modal opens
-  return (
-    <Modal show={show} onHide={onHide} animation={animation} bsSize="large">
-      <PropertiesModal slice={slice} onHide={onHide} onSave={onSave} />
-    </Modal>
-  );
-}
 
 function PropertiesModal({ slice, onHide, onSave }: InternalProps) {
   const [submitting, setSubmitting] = useState(false);
@@ -262,20 +247,35 @@ function PropertiesModal({ slice, onHide, onSave }: InternalProps) {
         </Row>
       </Modal.Body>
       <Modal.Footer>
-        <Button type="button" bsSize="sm" onClick={onHide}>
+        <Button type="button" buttonSize="sm" onClick={onHide} cta>
           {t('Cancel')}
         </Button>
         <Button
           type="submit"
-          bsSize="sm"
-          bsStyle="primary"
-          className="m-r-5"
+          buttonSize="sm"
+          buttonStyle="primary"
           disabled={!owners || submitting || !name}
+          cta
         >
           {t('Save')}
         </Button>
         <Dialog ref={errorDialog} />
       </Modal.Footer>
     </form>
+  );
+}
+
+export default function PropertiesModalWrapper({
+  show,
+  onHide,
+  animation,
+  slice,
+  onSave,
+}: WrapperProps) {
+  // The wrapper is a separate component so that hooks only run when the modal opens
+  return (
+    <Modal show={show} onHide={onHide} animation={animation} bsSize="large">
+      <PropertiesModal slice={slice} onHide={onHide} onSave={onSave} />
+    </Modal>
   );
 }

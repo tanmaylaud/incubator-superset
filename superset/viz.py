@@ -26,9 +26,8 @@ import inspect
 import logging
 import math
 import re
-import uuid
 from collections import defaultdict, OrderedDict
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from itertools import product
 from typing import (
     Any,
@@ -54,7 +53,7 @@ from flask_babel import lazy_gettext as _
 from geopy.point import Point
 from pandas.tseries.frequencies import to_offset
 
-from superset import app, cache, security_manager
+from superset import app, cache, db, security_manager
 from superset.constants import NULL_STRING
 from superset.errors import ErrorLevel, SupersetError, SupersetErrorType
 from superset.exceptions import (
@@ -62,6 +61,7 @@ from superset.exceptions import (
     QueryObjectValidationError,
     SpatialException,
 )
+from superset.models.cache import CacheKey
 from superset.models.helpers import QueryResult
 from superset.typing import QueryObjectDict, VizData, VizPayload
 from superset.utils import core as utils
@@ -72,6 +72,7 @@ from superset.utils.core import (
     QueryMode,
     to_adhoc,
 )
+from superset.utils.dates import datetime_to_epoch
 from superset.utils.hashing import md5_sha_from_str
 
 if TYPE_CHECKING:
@@ -93,6 +94,34 @@ METRIC_KEYS = [
     "y",
     "size",
 ]
+
+
+def set_and_log_cache(
+    cache_key: str,
+    df: pd.DataFrame,
+    query: str,
+    cached_dttm: str,
+    cache_timeout: int,
+    datasource_uid: Optional[str],
+) -> None:
+    try:
+        cache_value = dict(dttm=cached_dttm, df=df, query=query)
+        stats_logger.incr("set_cache_key")
+        cache.set(cache_key, cache_value, timeout=cache_timeout)
+
+        if datasource_uid:
+            ck = CacheKey(
+                cache_key=cache_key,
+                cache_timeout=cache_timeout,
+                datasource_uid=datasource_uid,
+            )
+            db.session.add(ck)
+    except Exception as ex:
+        # cache.set call can fail if the backend is down or if
+        # the key is too large or whatever other reasons
+        logger.warning("Could not cache key {}".format(cache_key))
+        logger.exception(ex)
+        cache.delete(cache_key)
 
 
 class BaseViz:
@@ -216,6 +245,14 @@ class BaseViz:
             df = df.cumsum()
         if min_periods:
             df = df[min_periods:]
+        if df.empty:
+            raise QueryObjectValidationError(
+                _(
+                    "Applied rolling window did not return any data. Please make sure "
+                    "the source query satisfies the minimum periods defined in the "
+                    "rolling window."
+                )
+            )
         return df
 
     def get_samples(self) -> List[Dict[str, Any]]:
@@ -314,7 +351,8 @@ class BaseViz:
         gb = self.groupby
         metrics = self.all_metrics or []
         columns = form_data.get("columns") or []
-        groupby = list(set(gb + columns))
+        # merge list and dedup while preserving order
+        groupby = list(OrderedDict.fromkeys(gb + columns))
 
         is_timeseries = self.is_timeseries
         if DTTM_ALIAS in groupby:
@@ -329,13 +367,17 @@ class BaseViz:
         # default order direction
         order_desc = form_data.get("order_desc", True)
 
-        since, until = utils.get_since_until(
-            relative_start=relative_start,
-            relative_end=relative_end,
-            time_range=form_data.get("time_range"),
-            since=form_data.get("since"),
-            until=form_data.get("until"),
-        )
+        try:
+            since, until = utils.get_since_until(
+                relative_start=relative_start,
+                relative_end=relative_end,
+                time_range=form_data.get("time_range"),
+                since=form_data.get("since"),
+                until=form_data.get("until"),
+            )
+        except ValueError as ex:
+            raise QueryObjectValidationError(str(ex))
+
         time_shift = form_data.get("time_shift", "")
         self.time_shift = utils.parse_past_timedelta(time_shift)
         from_dttm = None if since is None else (since - self.time_shift)
@@ -469,12 +511,40 @@ class BaseViz:
 
         if query_obj and not is_loaded:
             try:
+                invalid_columns = [
+                    col
+                    for col in (query_obj.get("columns") or [])
+                    + (query_obj.get("groupby") or [])
+                    + utils.get_column_names_from_metrics(
+                        cast(
+                            List[Union[str, Dict[str, Any]]], query_obj.get("metrics"),
+                        )
+                    )
+                    if col not in self.datasource.column_names
+                ]
+                if invalid_columns:
+                    raise QueryObjectValidationError(
+                        _(
+                            "Columns missing in datasource: %(invalid_columns)s",
+                            invalid_columns=invalid_columns,
+                        )
+                    )
                 df = self.get_df(query_obj)
                 if self.status != utils.QueryStatus.FAILED:
                     stats_logger.incr("loaded_from_source")
                     if not self.force:
                         stats_logger.incr("loaded_from_source_without_force")
                     is_loaded = True
+            except QueryObjectValidationError as ex:
+                error = dataclasses.asdict(
+                    SupersetError(
+                        message=str(ex),
+                        level=ErrorLevel.ERROR,
+                        error_type=SupersetErrorType.VIZ_GET_DF_ERROR,
+                    )
+                )
+                self.errors.append(error)
+                self.status = utils.QueryStatus.FAILED
             except Exception as ex:
                 logger.exception(ex)
 
@@ -495,16 +565,14 @@ class BaseViz:
                 and cache
                 and self.status != utils.QueryStatus.FAILED
             ):
-                try:
-                    cache_value = dict(dttm=cached_dttm, df=df, query=self.query)
-                    stats_logger.incr("set_cache_key")
-                    cache.set(cache_key, cache_value, timeout=self.cache_timeout)
-                except Exception as ex:
-                    # cache.set call can fail if the backend is down or if
-                    # the key is too large or whatever other reasons
-                    logger.warning("Could not cache key {}".format(cache_key))
-                    logger.exception(ex)
-                    cache.delete(cache_key)
+                set_and_log_cache(
+                    cache_key,
+                    df,
+                    self.query,
+                    cached_dttm,
+                    self.cache_timeout,
+                    self.datasource.uid,
+                )
         return {
             "cache_key": self._any_cache_key,
             "cached_dttm": self._any_cached_dttm,
@@ -579,11 +647,11 @@ class TableViz(BaseViz):
 
     def process_metrics(self) -> None:
         """Process form data and store parsed column configs.
-           1. Determine query mode based on form_data params.
-                - Use `query_mode` if it has a valid value
-                - Set as RAW mode if `all_columns` is set
-                - Otherwise defaults to AGG mode
-           2. Determine output columns based on query mode.
+        1. Determine query mode based on form_data params.
+             - Use `query_mode` if it has a valid value
+             - Set as RAW mode if `all_columns` is set
+             - Otherwise defaults to AGG mode
+        2. Determine output columns based on query mode.
         """
         # Verify form data first: if not specifying query mode, then cannot have both
         # GROUP BY and RAW COLUMNS.
@@ -788,6 +856,31 @@ class PivotTableViz(BaseViz):
         # only min and max work properly for non-numerics
         return aggfunc if aggfunc in ("min", "max") else "max"
 
+    @staticmethod
+    def _format_datetime(value: Union[pd.Timestamp, datetime, date, str]) -> str:
+        """
+        Format a timestamp in such a way that the viz will be able to apply
+        the correct formatting in the frontend.
+
+        :param value: the value of a temporal column
+        :return: formatted timestamp if it is a valid timestamp, otherwise
+                 the original value
+        """
+        tstamp: Optional[pd.Timestamp] = None
+        if isinstance(value, pd.Timestamp):
+            tstamp = value
+        if isinstance(value, datetime) or isinstance(value, date):
+            tstamp = pd.Timestamp(value)
+        if isinstance(value, str):
+            try:
+                tstamp = pd.Timestamp(value)
+            except ValueError:
+                pass
+        if tstamp:
+            return f"__timestamp:{datetime_to_epoch(tstamp)}"
+        # fallback in case something incompatible is returned
+        return cast(str, value)
+
     def get_data(self, df: pd.DataFrame) -> VizData:
         if df.empty:
             return None
@@ -800,8 +893,15 @@ class PivotTableViz(BaseViz):
         for metric in metrics:
             aggfuncs[metric] = self.get_aggfunc(metric, df, self.form_data)
 
-        groupby = self.form_data.get("groupby")
-        columns = self.form_data.get("columns")
+        groupby = self.form_data.get("groupby") or []
+        columns = self.form_data.get("columns") or []
+
+        for column_name in groupby + columns:
+            column = self.datasource.get_column(column_name)
+            if column and column.is_temporal:
+                ts = df[column_name].apply(self._format_datetime)
+                df[column_name] = ts
+
         if self.form_data.get("transpose_pivot"):
             groupby, columns = columns, groupby
 
@@ -889,13 +989,16 @@ class CalHeatmapViz(BaseViz):
                 values[str(v / 10 ** 9)] = obj.get(metric)
             data[metric] = values
 
-        start, end = utils.get_since_until(
-            relative_start=relative_start,
-            relative_end=relative_end,
-            time_range=form_data.get("time_range"),
-            since=form_data.get("since"),
-            until=form_data.get("until"),
-        )
+        try:
+            start, end = utils.get_since_until(
+                relative_start=relative_start,
+                relative_end=relative_end,
+                time_range=form_data.get("time_range"),
+                since=form_data.get("since"),
+                until=form_data.get("until"),
+            )
+        except ValueError as ex:
+            raise QueryObjectValidationError(str(ex))
         if not start or not end:
             raise QueryObjectValidationError(
                 "Please provide both time bounds (Since and Until)"
@@ -1288,7 +1391,10 @@ class NVD3TimeSeriesViz(NVD3Viz):
 
         for option in time_compare:
             query_object = self.query_obj()
-            delta = utils.parse_past_timedelta(option)
+            try:
+                delta = utils.parse_past_timedelta(option)
+            except ValueError as ex:
+                raise QueryObjectValidationError(str(ex))
             query_object["inner_from_dttm"] = query_object["from_dttm"]
             query_object["inner_to_dttm"] = query_object["to_dttm"]
 
@@ -2018,25 +2124,6 @@ class FilterBoxViz(BaseViz):
             else:
                 df[col] = []
         return d
-
-
-class IFrameViz(BaseViz):
-
-    """You can squeeze just about anything in this iFrame component"""
-
-    viz_type = "iframe"
-    verbose_name = _("iFrame")
-    credits = 'a <a href="https://github.com/airbnb/superset">Superset</a> original'
-    is_timeseries = False
-
-    def query_obj(self) -> QueryObjectDict:
-        return {}
-
-    def get_df(self, query_obj: Optional[QueryObjectDict] = None) -> pd.DataFrame:
-        return pd.DataFrame()
-
-    def get_data(self, df: pd.DataFrame) -> VizData:
-        return {"iframe": True}
 
 
 class ParallelCoordinatesViz(BaseViz):

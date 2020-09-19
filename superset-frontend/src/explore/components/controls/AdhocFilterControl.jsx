@@ -19,8 +19,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
-import { t } from '@superset-ui/translation';
-import { SupersetClient } from '@superset-ui/connection';
+import { t, logging, SupersetClient } from '@superset-ui/core';
 
 import OnPasteSelect from 'src/components/Select/OnPasteSelect';
 
@@ -105,7 +104,7 @@ export default class AdhocFilterControl extends React.Component {
         })
           .then(({ json }) => {
             if (json && json.partitions) {
-              const partitions = json.partitions;
+              const { partitions } = json;
               // for now only show latest_partition option
               // when table datasource has only 1 partition key.
               if (
@@ -127,8 +126,7 @@ export default class AdhocFilterControl extends React.Component {
             }
           })
           .catch(error => {
-            /* eslint-disable no-debugger, no-console */
-            console.error('fetch extra_table_metadata:', error.statusText);
+            logging.error('fetch extra_table_metadata:', error.statusText);
           });
       }
     }

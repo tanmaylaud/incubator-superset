@@ -21,12 +21,12 @@ import PropTypes from 'prop-types';
 import { bindActionCreators } from 'redux';
 import { connect } from 'react-redux';
 import Dialog from 'react-bootstrap-dialog';
-import { t } from '@superset-ui/translation';
+import { t } from '@superset-ui/core';
 import { InfoTooltipWithTrigger } from '@superset-ui/chart-controls';
 
+import Button from 'src/components/Button';
 import { exploreChart } from '../../explore/exploreUtils';
 import * as actions from '../actions/sqlLab';
-import Button from '../../components/Button';
 
 const propTypes = {
   actions: PropTypes.object.isRequired,
@@ -47,6 +47,7 @@ class ExploreCtasResultsButton extends React.PureComponent {
     this.visualize = this.visualize.bind(this);
     this.onClick = this.onClick.bind(this);
   }
+
   onClick() {
     this.visualize();
   }
@@ -59,6 +60,7 @@ class ExploreCtasResultsButton extends React.PureComponent {
       templateParams: this.props.templateParams,
     };
   }
+
   visualize() {
     this.props.actions
       .createCtasDatasource(this.buildVizOptions())
@@ -85,11 +87,12 @@ class ExploreCtasResultsButton extends React.PureComponent {
         );
       });
   }
+
   render() {
     return (
       <>
         <Button
-          bsSize="small"
+          buttonSize="small"
           onClick={this.onClick}
           tooltip={t('Explore the result set in the data exploration view')}
         >
@@ -125,7 +128,6 @@ function mapDispatchToProps(dispatch) {
   };
 }
 
-export { ExploreCtasResultsButton };
 export default connect(
   mapStateToProps,
   mapDispatchToProps,

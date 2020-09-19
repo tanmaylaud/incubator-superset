@@ -366,14 +366,15 @@ class TestChartApi(SupersetTestCase, ApiOwnersTestCaseMixin):
         gamma = self.get_user("gamma")
 
         chart_id = self.insert_chart("title", [admin.id], 1).id
+        birth_names_table_id = SupersetTestCase.get_table_by_name("birth_names").id
         chart_data = {
             "slice_name": "title1_changed",
             "description": "description1",
             "owners": [gamma.id],
             "viz_type": "viz_type1",
-            "params": "{'a': 1}",
+            "params": """{"a": 1}""",
             "cache_timeout": 1000,
-            "datasource_id": 1,
+            "datasource_id": birth_names_table_id,
             "datasource_type": "table",
             "dashboards": [1],
         }
@@ -388,9 +389,9 @@ class TestChartApi(SupersetTestCase, ApiOwnersTestCaseMixin):
         self.assertIn(admin, model.owners)
         self.assertIn(gamma, model.owners)
         self.assertEqual(model.viz_type, "viz_type1")
-        self.assertEqual(model.params, "{'a': 1}")
+        self.assertEqual(model.params, """{"a": 1}""")
         self.assertEqual(model.cache_timeout, 1000)
-        self.assertEqual(model.datasource_id, 1)
+        self.assertEqual(model.datasource_id, birth_names_table_id)
         self.assertEqual(model.datasource_type, "table")
         self.assertEqual(model.datasource_name, "birth_names")
         self.assertIn(related_dashboard, model.dashboards)
@@ -773,7 +774,7 @@ class TestChartApi(SupersetTestCase, ApiOwnersTestCaseMixin):
         self.login(username="admin")
         table = self.get_table_by_name("birth_names")
         request_payload = get_query_context(table.name, table.id, table.type)
-        request_payload["result_type"] = "query"
+        request_payload["result_type"] = utils.ChartDataResultType.QUERY
         rv = self.post_assert_metric(CHART_DATA_URI, request_payload, "data")
         self.assertEqual(rv.status_code, 200)
 
@@ -900,3 +901,23 @@ class TestChartApi(SupersetTestCase, ApiOwnersTestCaseMixin):
         payload = get_query_context(table.name, table.id, table.type)
         rv = self.post_assert_metric(CHART_DATA_URI, payload, "data")
         self.assertEqual(rv.status_code, 401)
+
+    def test_chart_data_jinja_filter_request(self):
+        """
+        Chart data API: Ensure request referencing filters via jinja renders a correct query
+        """
+        self.login(username="admin")
+        table = self.get_table_by_name("birth_names")
+        request_payload = get_query_context(table.name, table.id, table.type)
+        request_payload["result_type"] = utils.ChartDataResultType.QUERY
+        request_payload["queries"][0]["filters"] = [
+            {"col": "gender", "op": "==", "val": "boy"}
+        ]
+        request_payload["queries"][0]["extras"][
+            "where"
+        ] = "('boy' = '{{ filter_values('gender', 'xyz' )[0] }}')"
+        rv = self.post_assert_metric(CHART_DATA_URI, request_payload, "data")
+        response_payload = json.loads(rv.data.decode("utf-8"))
+        result = response_payload["result"][0]["query"]
+        if get_example_database().backend != "presto":
+            assert "('boy' = 'boy')" in result

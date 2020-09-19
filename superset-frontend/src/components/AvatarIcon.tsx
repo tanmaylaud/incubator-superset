@@ -17,35 +17,27 @@
  * under the License.
  */
 import React from 'react';
-import styled from '@superset-ui/style';
-import { getCategoricalSchemeRegistry } from '@superset-ui/color';
+import { getCategoricalSchemeRegistry } from '@superset-ui/core';
 import Avatar, { ConfigProvider } from 'react-avatar';
 import TooltipWrapper from 'src/components/TooltipWrapper';
 
 interface Props {
   firstName: string;
   lastName: string;
-  tableName: string;
-  userName: string;
+  uniqueKey: string;
   iconSize: number;
   textSize: number;
 }
 
 const colorList = getCategoricalSchemeRegistry().get();
 
-const StyledAvatar = styled(Avatar)`
-  margin: 0px 5px;
-`;
-
 export default function AvatarIcon({
-  tableName,
+  uniqueKey,
   firstName,
   lastName,
-  userName,
   iconSize,
   textSize,
 }: Props) {
-  const uniqueKey = `${tableName}-${userName}`;
   const fullName = `${firstName} ${lastName}`;
 
   return (
@@ -55,7 +47,7 @@ export default function AvatarIcon({
       tooltip={fullName}
     >
       <ConfigProvider colors={colorList && colorList.colors}>
-        <StyledAvatar
+        <Avatar
           key={uniqueKey}
           name={fullName}
           size={String(iconSize)}

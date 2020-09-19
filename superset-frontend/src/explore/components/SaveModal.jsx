@@ -20,20 +20,12 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { connect } from 'react-redux';
-import {
-  Alert,
-  Button,
-  FormControl,
-  FormGroup,
-  Modal,
-  Radio,
-} from 'react-bootstrap';
+import { Alert, FormControl, FormGroup, Modal, Radio } from 'react-bootstrap';
+import Button from 'src/components/Button';
 import FormLabel from 'src/components/FormLabel';
 import { CreatableSelect } from 'src/components/Select/SupersetStyledSelect';
-import { t } from '@superset-ui/translation';
+import { t } from '@superset-ui/core';
 import ReactMarkdown from 'react-markdown';
-
-import { EXPLORE_ONLY_VIZ_TYPE } from '../constants';
 
 const propTypes = {
   can_overwrite: PropTypes.bool,
@@ -57,14 +49,13 @@ class SaveModal extends React.Component {
     this.state = {
       saveToDashboardId: null,
       newSliceName: props.sliceName,
-      dashboards: [],
       alert: null,
       action: props.can_overwrite ? 'overwrite' : 'saveas',
-      vizType: props.form_data.viz_type,
     };
     this.onDashboardSelectChange = this.onDashboardSelectChange.bind(this);
     this.onSliceNameChange = this.onSliceNameChange.bind(this);
   }
+
   componentDidMount() {
     this.props.actions.fetchDashboards(this.props.userId).then(() => {
       const dashboardIds = this.props.dashboards.map(
@@ -82,18 +73,22 @@ class SaveModal extends React.Component {
       }
     });
   }
+
   onSliceNameChange(event) {
     this.setState({ newSliceName: event.target.value });
   }
+
   onDashboardSelectChange(event) {
     const newDashboardName = event ? event.label : null;
     const saveToDashboardId =
       event && typeof event.value === 'number' ? event.value : null;
     this.setState({ saveToDashboardId, newDashboardName });
   }
+
   changeAction(action) {
     this.setState({ action });
   }
+
   saveOrOverwrite(gotodash) {
     this.setState({ alert: null });
     this.props.actions.removeSaveModalAlert();
@@ -127,15 +122,15 @@ class SaveModal extends React.Component {
       });
     this.props.onHide();
   }
+
   removeAlert() {
     if (this.props.alert) {
       this.props.actions.removeSaveModalAlert();
     }
     this.setState({ alert: null });
   }
+
   render() {
-    const canNotSaveToDash =
-      EXPLORE_ONLY_VIZ_TYPE.indexOf(this.state.vizType) > -1;
     return (
       <Modal show onHide={this.props.onHide}>
         <Modal.Header closeButton>
@@ -147,6 +142,7 @@ class SaveModal extends React.Component {
               {this.state.alert ? this.state.alert : this.props.alert}
               <i
                 role="button"
+                aria-label="Remove alert"
                 tabIndex={0}
                 className="fa fa-close pull-right"
                 onClick={this.removeAlert.bind(this)}
@@ -212,32 +208,23 @@ class SaveModal extends React.Component {
 
         <Modal.Footer>
           <div className="float-right">
-            <Button
-              type="button"
-              id="btn_cancel"
-              bsSize="sm"
-              onClick={this.props.onHide}
-            >
+            <Button id="btn_cancel" buttonSize="sm" onClick={this.props.onHide}>
               {t('Cancel')}
             </Button>
             <Button
-              type="button"
               id="btn_modal_save_goto_dash"
-              bsSize="sm"
+              buttonSize="sm"
               disabled={
-                canNotSaveToDash ||
-                !this.state.newSliceName ||
-                !this.state.newDashboardName
+                !this.state.newSliceName || !this.state.newDashboardName
               }
               onClick={this.saveOrOverwrite.bind(this, true)}
             >
               {t('Save & go to dashboard')}
             </Button>
             <Button
-              type="button"
               id="btn_modal_save"
-              bsSize="sm"
-              bsStyle="primary"
+              buttonSize="sm"
+              buttonStyle="primary"
               onClick={this.saveOrOverwrite.bind(this, false)}
               disabled={!this.state.newSliceName}
             >
@@ -263,5 +250,4 @@ function mapStateToProps({ explore, saveModal }) {
   };
 }
 
-export { SaveModal };
 export default connect(mapStateToProps, () => ({}))(SaveModal);

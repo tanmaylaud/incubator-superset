@@ -17,7 +17,7 @@
  * under the License.
  */
 import React from 'react';
-import { SupersetClient } from '@superset-ui/connection';
+import { SupersetClient, logging } from '@superset-ui/core';
 
 import { isEqual } from 'lodash';
 
@@ -67,7 +67,7 @@ export default function withVerification(
               this.setState({ validOptions: new Set(json) || new Set() });
             }
           })
-          .catch(error => console.log(error));
+          .catch(error => logging.log(error));
 
         if (!this.state.hasRunVerification) {
           this.setState({ hasRunVerification: true });

@@ -20,19 +20,25 @@
 import moment from 'moment';
 import React from 'react';
 import PropTypes from 'prop-types';
-import styled from '@superset-ui/style';
+import { styled, CategoricalColorNamespace, t } from '@superset-ui/core';
 import { ButtonGroup } from 'react-bootstrap';
-import { CategoricalColorNamespace } from '@superset-ui/color';
-import { t } from '@superset-ui/translation';
+
+import {
+  LOG_ACTIONS_PERIODIC_RENDER_DASHBOARD,
+  LOG_ACTIONS_FORCE_REFRESH_DASHBOARD,
+  LOG_ACTIONS_TOGGLE_EDIT_DASHBOARD,
+} from 'src/logger/LogUtils';
 
 import Icon from 'src/components/Icon';
+import Button from 'src/components/Button';
+import EditableTitle from 'src/components/EditableTitle';
+import FaveStar from 'src/components/FaveStar';
+import { safeStringify } from 'src/utils/safeStringify';
 
 import HeaderActionsDropdown from './HeaderActionsDropdown';
-import EditableTitle from '../../components/EditableTitle';
-import Button from '../../components/Button';
-import FaveStar from '../../components/FaveStar';
 import PublishedStatus from './PublishedStatus';
 import UndoRedoKeylisteners from './UndoRedoKeylisteners';
+import PropertiesModal from './PropertiesModal';
 
 import { chartPropShape } from '../util/propShapes';
 import {
@@ -40,14 +46,6 @@ import {
   SAVE_TYPE_OVERWRITE,
   DASHBOARD_POSITION_DATA_LIMIT,
 } from '../util/constants';
-import { safeStringify } from '../../utils/safeStringify';
-
-import {
-  LOG_ACTIONS_PERIODIC_RENDER_DASHBOARD,
-  LOG_ACTIONS_FORCE_REFRESH_DASHBOARD,
-  LOG_ACTIONS_TOGGLE_EDIT_DASHBOARD,
-} from '../../logger/LogUtils';
-import PropertiesModal from './PropertiesModal';
 import setPeriodicRunner from '../util/setPeriodicRunner';
 import { options as PeriodicRefreshOptions } from './RefreshIntervalModal';
 
@@ -134,7 +132,7 @@ class Header extends React.PureComponent {
   }
 
   componentDidMount() {
-    const refreshFrequency = this.props.refreshFrequency;
+    const { refreshFrequency } = this.props;
     this.startPeriodicRender(refreshFrequency * 1000);
   }
 
@@ -390,36 +388,40 @@ class Header extends React.PureComponent {
                 <>
                   <ButtonGroup className="m-r-5">
                     <Button
-                      bsSize="small"
+                      buttonSize="small"
                       onClick={onUndo}
                       disabled={undoLength < 1}
-                      bsStyle={this.state.emphasizeUndo ? 'primary' : undefined}
+                      buttonStyle={
+                        this.state.emphasizeUndo ? 'primary' : undefined
+                      }
                     >
                       <i title="Undo" className="undo-action fa fa-reply" />
                       &nbsp;
                     </Button>
                     <Button
-                      bsSize="small"
+                      buttonSize="small"
                       onClick={onRedo}
                       disabled={redoLength < 1}
-                      bsStyle={this.state.emphasizeRedo ? 'primary' : undefined}
+                      buttonStyle={
+                        this.state.emphasizeRedo ? 'primary' : undefined
+                      }
                     >
                       &nbsp;
                       <i title="Redo" className="redo-action fa fa-share" />
                     </Button>
                   </ButtonGroup>
                   <Button
-                    bsSize="small"
+                    buttonSize="small"
                     className="m-r-5"
                     onClick={this.constructor.discardChanges}
-                    bsStyle="default"
+                    buttonStyle="default"
                   >
                     {t('Discard Changes')}
                   </Button>
                   <Button
-                    bsSize="small"
+                    buttonSize="small"
                     disabled={!hasUnsavedChanges}
-                    bsStyle="primary"
+                    buttonStyle="primary"
                     onClick={this.overwriteDashboard}
                   >
                     {t('Save')}
@@ -464,7 +466,7 @@ class Header extends React.PureComponent {
                 setColorSchemeAndUnsavedChanges(updates.colorScheme);
                 dashboardTitleChanged(updates.title);
                 if (updates.slug) {
-                  history.pushState(
+                  window.history.pushState(
                     { event: 'dashboard_properties_changed' },
                     '',
                     `/superset/dashboard/${updates.slug}/`,

@@ -17,12 +17,10 @@
  * under the License.
  */
 import React from 'react';
-import styled from '@superset-ui/style';
+import { styled, SupersetClient, t } from '@superset-ui/core';
 import PropTypes from 'prop-types';
 import rison from 'rison';
 import { AsyncSelect, CreatableSelect, Select } from 'src/components/Select';
-import { t } from '@superset-ui/translation';
-import { SupersetClient } from '@superset-ui/connection';
 
 import Label from 'src/components/Label';
 import FormLabel from 'src/components/FormLabel';
@@ -33,7 +31,7 @@ import './TableSelector.less';
 
 const FieldTitle = styled.p`
   color: ${({ theme }) => theme.colors.secondary.light2};
-  font-size: ${({ theme }) => theme.typography.sizes.s};
+  font-size: ${({ theme }) => theme.typography.sizes.s}px;
   margin: 20px 0 10px 0;
   text-transform: uppercase;
 `;
@@ -55,6 +53,7 @@ const propTypes = {
   onChange: PropTypes.func,
   clearable: PropTypes.bool,
   handleError: PropTypes.func.isRequired,
+  isDatabaseSelectEnabled: PropTypes.bool,
 };
 
 const defaultProps = {
@@ -69,6 +68,7 @@ const defaultProps = {
   sqlLabMode: true,
   formMode: false,
   clearable: true,
+  isDatabaseSelectEnabled: true,
 };
 
 export default class TableSelector extends React.PureComponent {
@@ -246,10 +246,8 @@ export default class TableSelector extends React.PureComponent {
 
   renderDatabaseOption(db) {
     return (
-      <span>
-        <Label bsStyle="default" className="m-r-5">
-          {db.backend}
-        </Label>
+      <span title={db.database_name}>
+        <Label bsStyle="default">{db.backend}</Label>
         {db.database_name}
       </span>
     );
@@ -257,7 +255,7 @@ export default class TableSelector extends React.PureComponent {
 
   renderTableOption(option) {
     return (
-      <span className="TableLabel">
+      <span className="TableLabel" title={option.label}>
         <span className="m-r-5">
           <small className="text-muted">
             <i
@@ -317,6 +315,7 @@ export default class TableSelector extends React.PureComponent {
         optionRenderer={this.renderDatabaseOption}
         mutator={this.dbMutator}
         placeholder={t('Select a database')}
+        isDisabled={!this.props.isDatabaseSelectEnabled}
         autoSelect
       />,
     );

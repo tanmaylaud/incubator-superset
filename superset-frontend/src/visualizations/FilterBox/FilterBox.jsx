@@ -21,26 +21,25 @@ import PropTypes from 'prop-types';
 import { debounce } from 'lodash';
 import { max as d3Max } from 'd3-array';
 import { AsyncCreatableSelect, CreatableSelect } from 'src/components/Select';
-import { Button } from 'react-bootstrap';
-import { t } from '@superset-ui/translation';
-import { SupersetClient } from '@superset-ui/connection';
+import Button from 'src/components/Button';
+import { t, styled, SupersetClient } from '@superset-ui/core';
 
 import FormLabel from 'src/components/FormLabel';
 
-import DateFilterControl from '../../explore/components/controls/DateFilterControl';
-import ControlRow from '../../explore/components/ControlRow';
-import Control from '../../explore/components/Control';
-import controls from '../../explore/controls';
-import { getExploreUrl } from '../../explore/exploreUtils';
-import OnPasteSelect from '../../components/Select/OnPasteSelect';
-import { getDashboardFilterKey } from '../../dashboard/util/getDashboardFilterKey';
-import { getFilterColorMap } from '../../dashboard/util/dashboardFiltersColorMap';
+import DateFilterControl from 'src/explore/components/controls/DateFilterControl';
+import ControlRow from 'src/explore/components/ControlRow';
+import Control from 'src/explore/components/Control';
+import { controls } from 'src/explore/controls';
+import { getExploreUrl } from 'src/explore/exploreUtils';
+import OnPasteSelect from 'src/components/Select/OnPasteSelect';
+import { getDashboardFilterKey } from 'src/dashboard/util/getDashboardFilterKey';
+import { getFilterColorMap } from 'src/dashboard/util/dashboardFiltersColorMap';
 import {
   FILTER_CONFIG_ATTRIBUTES,
   FILTER_OPTIONS_LIMIT,
   TIME_FILTER_LABELS,
-} from '../../explore/constants';
-import FilterBadgeIcon from '../../components/FilterBadgeIcon';
+} from 'src/explore/constants';
+import FilterBadgeIcon from 'src/components/FilterBadgeIcon';
 
 import './FilterBox.less';
 
@@ -98,6 +97,13 @@ const defaultProps = {
   showDruidTimeOrigin: false,
   instantFiltering: false,
 };
+
+const Styles = styled.div`
+  height: 100%;
+  min-height: 100%;
+  max-height: 100%;
+  overflow: visible;
+`;
 
 class FilterBox extends React.Component {
   constructor(props) {
@@ -157,6 +163,7 @@ class FilterBox extends React.Component {
       this.props.onChange(selectedValues, false);
     });
   }
+
   changeFilter(filter, options) {
     const fltr = TIME_FILTER_MAP[filter] || filter;
     let vals = null;
@@ -314,6 +321,7 @@ class FilterBox extends React.Component {
     }
     return datasourceFilters;
   }
+
   renderSelect(filterConfig) {
     const { filtersChoices } = this.props;
     const { selectedValues } = this.state;
@@ -333,7 +341,7 @@ class FilterBox extends React.Component {
           ? selectedValues[key]
           : [selectedValues[key]];
         selectedValuesForKey
-          .filter(value => !choiceIds.has(value))
+          .filter(value => value !== null && !choiceIds.has(value))
           .forEach(value => {
             choices.unshift({
               filter: key,
@@ -424,23 +432,21 @@ class FilterBox extends React.Component {
     const { instantFiltering } = this.props;
 
     return (
-      <div className="scrollbar-container">
-        <div className="scrollbar-content">
-          {this.renderDateFilter()}
-          {this.renderDatasourceFilters()}
-          {this.renderFilters()}
-          {!instantFiltering && (
-            <Button
-              bsSize="small"
-              bsStyle="primary"
-              onClick={this.clickApply.bind(this)}
-              disabled={!this.state.hasChanged}
-            >
-              {t('Apply')}
-            </Button>
-          )}
-        </div>
-      </div>
+      <Styles>
+        {this.renderDateFilter()}
+        {this.renderDatasourceFilters()}
+        {this.renderFilters()}
+        {!instantFiltering && (
+          <Button
+            buttonSize="small"
+            buttonStyle="primary"
+            onClick={this.clickApply.bind(this)}
+            disabled={!this.state.hasChanged}
+          >
+            {t('Apply')}
+          </Button>
+        )}
+      </Styles>
     );
   }
 }

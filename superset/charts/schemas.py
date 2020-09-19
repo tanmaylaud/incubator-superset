@@ -71,6 +71,10 @@ datasource_id_description = (
     "A complete datasource identification needs `datasouce_id` "
     "and `datasource_type`."
 )
+datasource_uid_description = (
+    "The uid of the dataset/datasource this new chart will use. "
+    "A complete datasource identification needs `datasouce_uid` "
+)
 datasource_type_description = (
     "The type of dataset/datasource identified on `datasource_id`."
 )
@@ -797,7 +801,7 @@ class ChartDataQueryObjectSchema(Schema):
         deprecated=True,
     )
     having_filters = fields.List(
-        fields.Dict(),
+        fields.Nested(ChartDataFilterSchema),
         description="HAVING filters to be added to legacy Druid datasource queries. "
         "This field is deprecated and should be passed to `extras` "
         "as `having_druid`.",

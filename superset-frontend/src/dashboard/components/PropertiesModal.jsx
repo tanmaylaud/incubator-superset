@@ -18,15 +18,16 @@
  */
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Row, Col, Button, Modal, FormControl } from 'react-bootstrap';
+import { Row, Col, Modal, FormControl } from 'react-bootstrap';
+import Button from 'src/components/Button';
 import Dialog from 'react-bootstrap-dialog';
 import { AsyncSelect } from 'src/components/Select';
-import AceEditor from 'react-ace';
 import rison from 'rison';
-import { t } from '@superset-ui/translation';
-import { SupersetClient } from '@superset-ui/connection';
+import { t, SupersetClient } from '@superset-ui/core';
 
 import FormLabel from 'src/components/FormLabel';
+import { JsonEditor } from 'src/components/AsyncAceEditor';
+
 import ColorSchemeControlWrapper from 'src/dashboard/components/ColorSchemeControlWrapper';
 import getClientErrorObject from '../../utils/getClientErrorObject';
 import withToasts from '../../messageToasts/enhancers/withToasts';
@@ -79,7 +80,9 @@ class PropertiesModal extends React.PureComponent {
 
   componentDidMount() {
     this.fetchDashboardDetails();
+    JsonEditor.preload();
   }
+
   onColorSchemeChange(value) {
     this.updateFormState('colorScheme', value);
   }
@@ -288,11 +291,7 @@ class PropertiesModal extends React.PureComponent {
             <Row>
               <Col md={12}>
                 <h3 style={{ marginTop: '1em' }}>
-                  <button
-                    type="button"
-                    className="text-button"
-                    onClick={this.toggleAdvanced}
-                  >
+                  <Button buttonStyle="link" onClick={this.toggleAdvanced}>
                     <i
                       className={`fa fa-angle-${
                         isAdvancedOpen ? 'down' : 'right'
@@ -300,20 +299,19 @@ class PropertiesModal extends React.PureComponent {
                       style={{ minWidth: '1em' }}
                     />
                     {t('Advanced')}
-                  </button>
+                  </Button>
                 </h3>
                 {isAdvancedOpen && (
                   <>
                     <FormLabel htmlFor="json_metadata">
                       {t('JSON Metadata')}
                     </FormLabel>
-                    <AceEditor
-                      mode="json"
+                    <JsonEditor
+                      showLoadingForImport
                       name="json_metadata"
                       defaultValue={this.defaultMetadataValue}
                       value={values.json_metadata}
                       onChange={this.onMetadataChange}
-                      theme="textmate"
                       tabSize={2}
                       width="100%"
                       height="200px"
@@ -332,14 +330,15 @@ class PropertiesModal extends React.PureComponent {
             <span className="float-right">
               <Button
                 type="submit"
-                bsSize="sm"
-                bsStyle="primary"
+                buttonSize="sm"
+                buttonStyle="primary"
                 className="m-r-5"
                 disabled={errors.length > 0}
+                cta
               >
                 {saveLabel}
               </Button>
-              <Button type="button" bsSize="sm" onClick={onHide}>
+              <Button type="button" buttonSize="sm" onClick={onHide} cta>
                 {t('Cancel')}
               </Button>
               <Dialog

@@ -25,12 +25,17 @@ import {
   ListGroupItem,
 } from 'react-bootstrap';
 import { connect } from 'react-redux';
-import { t } from '@superset-ui/translation';
+import { t, withTheme } from '@superset-ui/core';
 import { InfoTooltipWithTrigger } from '@superset-ui/chart-controls';
-import { getChartKey } from '../../exploreUtils';
-import { runAnnotationQuery } from '../../../chart/chartAction';
+import AsyncEsmComponent from 'src/components/AsyncEsmComponent';
+import { getChartKey } from 'src/explore/exploreUtils';
+import { runAnnotationQuery } from 'src/chart/chartAction';
 
-import AnnotationLayer from './AnnotationLayer';
+const AnnotationLayer = AsyncEsmComponent(
+  () => import('./AnnotationLayer'),
+  // size of overlay inner content
+  () => <div style={{ width: 450, height: 368 }} />,
+);
 
 const propTypes = {
   colorScheme: PropTypes.string.isRequired,
@@ -59,6 +64,11 @@ class AnnotationLayerControl extends React.PureComponent {
     super(props);
     this.addAnnotationLayer = this.addAnnotationLayer.bind(this);
     this.removeAnnotationLayer = this.removeAnnotationLayer.bind(this);
+  }
+
+  componentDidMount() {
+    // preload the AnotationLayer component and dependent libraries i.e. mathjs
+    AnnotationLayer.preload();
   }
 
   UNSAFE_componentWillReceiveProps(nextProps) {
@@ -100,6 +110,7 @@ class AnnotationLayerControl extends React.PureComponent {
 
   renderPopover(parent, annotation, error) {
     const id = !annotation ? '_new' : annotation.name;
+    const { theme } = this.props;
     return (
       <Popover
         style={{ maxWidth: 'none' }}
@@ -110,12 +121,14 @@ class AnnotationLayerControl extends React.PureComponent {
       >
         <AnnotationLayer
           {...annotation}
+          parent={this.refs[parent]}
           error={error}
           colorScheme={this.props.colorScheme}
           vizType={this.props.vizType}
           addAnnotationLayer={this.addAnnotationLayer}
           removeAnnotationLayer={this.removeAnnotationLayer}
           close={() => this.refs[parent].hide()}
+          theme={theme}
         />
       </Popover>
     );
@@ -208,7 +221,9 @@ function mapDispatchToProps(dispatch) {
   };
 }
 
+const themedAnnotationLayerControl = withTheme(AnnotationLayerControl);
+
 export default connect(
   mapStateToProps,
   mapDispatchToProps,
-)(AnnotationLayerControl);
+)(themedAnnotationLayerControl);

@@ -32,6 +32,7 @@ from flask_appbuilder.models.sqla.interface import SQLAInterface
 from flask_appbuilder.security.decorators import has_access, has_access_api
 from flask_appbuilder.security.sqla import models as ab_models
 from flask_babel import gettext as __, lazy_gettext as _
+from jinja2.exceptions import TemplateError
 from sqlalchemy import and_, or_, select
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import (
@@ -67,6 +68,7 @@ from superset.connectors.sqla.models import (
     TableColumn,
 )
 from superset.dashboards.dao import DashboardDAO
+from superset.databases.filters import DatabaseFilter
 from superset.exceptions import (
     CertificateException,
     DatabaseNotFound,
@@ -108,7 +110,6 @@ from superset.views.base import (
     json_success,
     validate_sqlatable,
 )
-from superset.views.database.filters import DatabaseFilter
 from superset.views.utils import (
     _deserialize_results_payload,
     apply_display_max_row_limit,
@@ -535,7 +536,7 @@ class Superset(BaseSupersetView):  # pylint: disable=too-many-public-methods
 
             return self.generate_json(viz_obj, response_type)
         except SupersetException as ex:
-            return json_error_response(utils.error_msg_from_exception(ex))
+            return json_error_response(utils.error_msg_from_exception(ex), 400)
 
     @event_logger.log_this
     @has_access
@@ -1161,7 +1162,7 @@ class Superset(BaseSupersetView):  # pylint: disable=too-many-public-methods
             logger.warning("Stopped an unsafe database connection")
             return json_error_response(_(str(ex)), 400)
         except Exception as ex:  # pylint: disable=broad-except
-            logger.error("Unexpected error %s", type(ex).__name__)
+            logger.warning("Unexpected error %s", type(ex).__name__)
             return json_error_response(
                 _("Unexpected error occurred, please check your logs for details"), 400
             )
@@ -1430,12 +1431,16 @@ class Superset(BaseSupersetView):  # pylint: disable=too-many-public-methods
         """Warms up the cache for the slice or table.
 
         Note for slices a force refresh occurs.
+
+        In terms of the `extra_filters` these can be obtained from records in the JSON
+        encoded `logs.json` column associated with the `explore_json` action.
         """
         session = db.session()
         slice_id = request.args.get("slice_id")
         dashboard_id = request.args.get("dashboard_id")
         table_name = request.args.get("table_name")
         db_name = request.args.get("db_name")
+        extra_filters = request.args.get("extra_filters")
 
         if not slice_id and not (table_name and db_name):
             return json_error_response(
@@ -1481,8 +1486,10 @@ class Superset(BaseSupersetView):  # pylint: disable=too-many-public-methods
             try:
                 form_data = get_form_data(slc.id, use_slice_data=True)[0]
                 if dashboard_id:
-                    form_data["extra_filters"] = get_dashboard_extra_filters(
-                        slc.id, dashboard_id
+                    form_data["extra_filters"] = (
+                        json.loads(extra_filters)
+                        if extra_filters
+                        else get_dashboard_extra_filters(slc.id, dashboard_id)
                     )
 
                 obj = get_viz(
@@ -1651,6 +1658,13 @@ class Superset(BaseSupersetView):  # pylint: disable=too-many-public-methods
         )
 
         dashboard_data = dash.data
+        if is_feature_enabled("REMOVE_SLICE_LEVEL_LABEL_COLORS"):
+            # dashboard metadata has dashboard-level label_colors,
+            # so remove slice-level label_colors from its form_data
+            for slc in dashboard_data.get("slices"):
+                form_data = slc.get("form_data")
+                form_data.pop("label_colors", None)
+
         dashboard_data.update(
             {
                 "standalone_mode": standalone_mode,
@@ -1686,6 +1700,7 @@ class Superset(BaseSupersetView):  # pylint: disable=too-many-public-methods
             entry="dashboard",
             standalone_mode=standalone_mode,
             title=dash.dashboard_title,
+            custom_css=dashboard_data.get("css"),
             bootstrap_data=json.dumps(
                 bootstrap_data, default=utils.pessimistic_json_iso_dttm_ser
             ),
@@ -2300,10 +2315,10 @@ class Superset(BaseSupersetView):  # pylint: disable=too-many-public-methods
             rendered_query = template_processor.process_template(
                 query.sql, **template_params
             )
-        except Exception as ex:  # pylint: disable=broad-except
+        except TemplateError as ex:
             error_msg = utils.error_msg_from_exception(ex)
             return json_error_response(
-                f"Query {query_id}: Template rendering failed: {error_msg}"
+                f"Query {query_id}: Template syntax error: {error_msg}"
             )
 
         # Limit is not applied to the CTA queries if SQLLAB_CTAS_NO_LIMIT flag is set
@@ -2515,6 +2530,8 @@ class Superset(BaseSupersetView):  # pylint: disable=too-many-public-methods
     def welcome(self) -> FlaskResponse:
         """Personalized welcome page"""
         if not g.user or not g.user.get_id():
+            if conf.get("PUBLIC_ROLE_LIKE_GAMMA", False) or conf["PUBLIC_ROLE_LIKE"]:
+                return self.render_template("superset/public_welcome.html")
             return redirect(appbuilder.get_url_for_login)
 
         welcome_dashboard_id = (
@@ -2531,8 +2548,8 @@ class Superset(BaseSupersetView):  # pylint: disable=too-many-public-methods
         }
 
         return self.render_template(
-            "superset/welcome.html",
-            entry="welcome",
+            "superset/crud_views.html",
+            entry="crudViews",
             bootstrap_data=json.dumps(
                 payload, default=utils.pessimistic_json_iso_dttm_ser
             ),

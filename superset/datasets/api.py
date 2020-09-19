@@ -25,6 +25,7 @@ from marshmallow import ValidationError
 
 from superset.connectors.sqla.models import SqlaTable
 from superset.constants import RouteMethod
+from superset.databases.filters import DatabaseFilter
 from superset.datasets.commands.create import CreateDatasetCommand
 from superset.datasets.commands.delete import DeleteDatasetCommand
 from superset.datasets.commands.exceptions import (
@@ -51,7 +52,6 @@ from superset.views.base_api import (
     RelatedFieldFilter,
     statsd_metrics,
 )
-from superset.views.database.filters import DatabaseFilter
 from superset.views.filters import FilterRelatedOwners
 
 logger = logging.getLogger(__name__)
@@ -67,6 +67,7 @@ class DatasetRestApi(BaseSupersetModelRestApi):
     include_route_methods = RouteMethod.REST_MODEL_VIEW_CRUD_SET | {
         RouteMethod.EXPORT,
         RouteMethod.RELATED,
+        RouteMethod.DISTINCT,
         "refresh",
         "related_objects",
     }
@@ -151,6 +152,7 @@ class DatasetRestApi(BaseSupersetModelRestApi):
     }
     filter_rel_fields = {"database": [["id", DatabaseFilter, lambda: []]]}
     allowed_rel_fields = {"database", "owners"}
+    allowed_distinct_fields = {"schema"}
 
     openapi_spec_component_schemas = (DatasetRelatedObjectsResponse,)
 

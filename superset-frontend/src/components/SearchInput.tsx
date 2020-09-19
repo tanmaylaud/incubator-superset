@@ -16,16 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import styled from '@superset-ui/style';
+import { styled } from '@superset-ui/core';
 import React from 'react';
 import Icon from 'src/components/Icon';
 
-interface Props {
+interface SearchInputProps {
   onSubmit: () => void;
   onClear: () => void;
   value: string;
   onChange: React.EventHandler<React.ChangeEvent<HTMLInputElement>>;
   placeholder?: string;
+  name?: string;
 }
 
 const SearchInputWrapper = styled.div`
@@ -49,20 +50,18 @@ const commonStyles = `
   position: absolute;
   z-index: 2;
   display: block;
-  width: 28px;
-  height: 28px;
   cursor: pointer;
 `;
 const SearchIcon = styled(Icon)`
-  ${commonStyles}
-  top: 2px;
+  ${commonStyles};
+  top: 1px;
   left: 2px;
 `;
 
 const ClearIcon = styled(Icon)`
-  ${commonStyles}
+  ${commonStyles};
   right: 0px;
-  top: 3px;
+  top: 1px;
 `;
 
 export default function SearchInput({
@@ -70,8 +69,9 @@ export default function SearchInput({
   onClear,
   onSubmit,
   placeholder = 'Search',
+  name,
   value,
-}: Props) {
+}: SearchInputProps) {
   return (
     <SearchInputWrapper>
       <SearchIcon
@@ -91,6 +91,7 @@ export default function SearchInput({
         placeholder={placeholder}
         onChange={onChange}
         value={value}
+        name={name}
       />
       {value && (
         <ClearIcon

@@ -47,8 +47,11 @@ const propTypes = {
   renderTabContent: PropTypes.bool, // whether to render tabs + content or just tabs
   editMode: PropTypes.bool.isRequired,
   renderHoverMenu: PropTypes.bool,
-  logEvent: PropTypes.func.isRequired,
   directPathToChild: PropTypes.arrayOf(PropTypes.string),
+
+  // actions (from DashboardComponent.jsx)
+  logEvent: PropTypes.func.isRequired,
+  setMountedTab: PropTypes.func.isRequired,
 
   // grid related
   availableColumnCount: PropTypes.number,
@@ -127,7 +130,7 @@ class Tabs extends React.PureComponent {
 
   handleClickTab(tabIndex, ev) {
     if (ev) {
-      const target = ev.target;
+      const { target } = ev;
       // special handler for clicking on anchor link icon (or whitespace nearby):
       // will show short link popover but do not change tab
       if (target && target.classList.contains('short-link-trigger')) {
@@ -260,6 +263,12 @@ class Tabs extends React.PureComponent {
                       onDeleteTab={this.handleDeleteTab}
                     />
                   }
+                  onEntering={() => {
+                    // Entering current tab, DOM is visible and has dimension
+                    if (renderTabContent) {
+                      this.props.setMountedTab(tabId);
+                    }
+                  }}
                 >
                   {renderTabContent && (
                     <DashboardComponent

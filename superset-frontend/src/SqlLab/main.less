@@ -134,7 +134,7 @@ div.Workspace {
 
 .sql-toolbar {
   padding: 10px 10px 5px 10px;
-  background-color: @gray-bg;
+  background-color: @lightest;
   display: flex;
   justify-content: space-between;
   border: 1px solid @gray-light;
@@ -421,6 +421,10 @@ div.tablePopover {
   border: 1px solid @gray-light;
   font-feature-settings: @font-feature-settings;
   font-family: @font-family-monospace;
+
+  &.ace_autocomplete {
+    width: 520px;
+  }
 }
 
 .Select__menu-outer {

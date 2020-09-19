@@ -16,17 +16,36 @@
 # under the License.
 """Unit tests for alerting in Superset"""
 import logging
+from typing import Optional
 from unittest.mock import patch
 
 import pytest
 
 from superset import db
-from superset.models.alerts import Alert, AlertLog
-from superset.models.schedules import ScheduleType
+from superset.exceptions import SupersetException
+from superset.models.alerts import (
+    Alert,
+    AlertLog,
+    SQLObservation,
+    SQLObserver,
+    Validator,
+)
 from superset.models.slice import Slice
-from superset.tasks.schedules import run_alert_query, schedule_alert_query
+from superset.tasks.alerts.observer import observe
+from superset.tasks.alerts.validator import (
+    check_validator,
+    not_null_validator,
+    operator_validator,
+)
+from superset.tasks.schedules import (
+    AlertState,
+    deliver_alert,
+    evaluate_alert,
+    validate_observations,
+)
 from superset.utils import core as utils
 from tests.test_app import app
+from tests.utils import read_fixture
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,109 +54,290 @@ logger = logging.getLogger(__name__)
 @pytest.yield_fixture(scope="module")
 def setup_database():
     with app.app_context():
-        slice_id = db.session.query(Slice).all()[0].id
-        database_id = utils.get_example_database().id
+        example_database = utils.get_example_database()
+        example_database.get_sqla_engine().execute(
+            "CREATE TABLE test_table AS SELECT 1 as first, 2 as second"
+        )
+        example_database.get_sqla_engine().execute(
+            "INSERT INTO test_table (first, second) VALUES (3, 4)"
+        )
 
-        alert1 = Alert(
-            id=1,
-            label="alert_1",
-            active=True,
-            crontab="*/1 * * * *",
-            sql="SELECT 0",
-            alert_type="email",
-            slice_id=slice_id,
-            database_id=database_id,
-        )
-        alert2 = Alert(
-            id=2,
-            label="alert_2",
-            active=True,
-            crontab="*/1 * * * *",
-            sql="SELECT 55",
-            alert_type="email",
-            slice_id=slice_id,
-            database_id=database_id,
-        )
-        alert3 = Alert(
-            id=3,
-            label="alert_3",
-            active=False,
-            crontab="*/1 * * * *",
-            sql="UPDATE 55",
-            alert_type="email",
-            slice_id=slice_id,
-            database_id=database_id,
-        )
-        alert4 = Alert(id=4, active=False, label="alert_4", database_id=-1)
-        alert5 = Alert(id=5, active=False, label="alert_5", database_id=database_id)
-
-        for num in range(1, 6):
-            eval(f"db.session.add(alert{num})")
+        no_observer_alert = Alert(crontab="* * * * *", label="No Observer")
+        db.session.add(no_observer_alert)
         db.session.commit()
         yield db.session
 
+        db.session.query(SQLObservation).delete()
+        db.session.query(SQLObserver).delete()
+        db.session.query(Validator).delete()
         db.session.query(AlertLog).delete()
         db.session.query(Alert).delete()
 
 
-@patch("superset.tasks.schedules.deliver_alert")
-@patch("superset.tasks.schedules.logging.Logger.error")
-def test_run_alert_query(mock_error, mock_deliver, setup_database):
-    database = setup_database
-    run_alert_query(database.query(Alert).filter_by(id=1).one().id, database)
-    alert1 = database.query(Alert).filter_by(id=1).one()
-    assert mock_deliver.call_count == 0
-    assert len(alert1.logs) == 1
-    assert alert1.logs[0].alert_id == 1
-    assert alert1.logs[0].state == "pass"
-
-    run_alert_query(database.query(Alert).filter_by(id=2).one().id, database)
-    alert2 = database.query(Alert).filter_by(id=2).one()
-    assert mock_deliver.call_count == 1
-    assert len(alert2.logs) == 1
-    assert alert2.logs[0].alert_id == 2
-    assert alert2.logs[0].state == "trigger"
-
-    run_alert_query(database.query(Alert).filter_by(id=3).one().id, database)
-    alert3 = database.query(Alert).filter_by(id=3).one()
-    assert mock_deliver.call_count == 1
-    assert mock_error.call_count == 2
-    assert len(alert3.logs) == 1
-    assert alert3.logs[0].alert_id == 3
-    assert alert3.logs[0].state == "error"
-
-    run_alert_query(database.query(Alert).filter_by(id=4).one().id, database)
-    assert mock_deliver.call_count == 1
-    assert mock_error.call_count == 3
-
-    run_alert_query(database.query(Alert).filter_by(id=5).one().id, database)
-    assert mock_deliver.call_count == 1
-    assert mock_error.call_count == 4
-
-
-@patch("superset.tasks.schedules.deliver_alert")
-@patch("superset.tasks.schedules.run_alert_query")
-def test_schedule_alert_query(mock_run_alert, mock_deliver_alert, setup_database):
-    database = setup_database
-    active_alert = database.query(Alert).filter_by(id=1).one()
-    inactive_alert = database.query(Alert).filter_by(id=3).one()
-
-    # Test that inactive alerts are no processed
-    schedule_alert_query(report_type=ScheduleType.alert, schedule_id=inactive_alert.id)
-    assert mock_run_alert.call_count == 0
-    assert mock_deliver_alert.call_count == 0
-
-    # Test that active alerts with no recipients passed in are processed regularly
-    schedule_alert_query(report_type=ScheduleType.alert, schedule_id=active_alert.id)
-    assert mock_run_alert.call_count == 1
-    assert mock_deliver_alert.call_count == 0
-
-    # Test that active alerts sent as a test are delivered immediately
-    schedule_alert_query(
-        report_type=ScheduleType.alert,
-        schedule_id=active_alert.id,
-        recipients="testing@email.com",
-        is_test_alert=True,
+def create_alert(
+    dbsession,
+    sql: str,
+    validator_type: Optional[str] = None,
+    validator_config: Optional[str] = None,
+) -> Alert:
+    alert = Alert(
+        label="test_alert",
+        active=True,
+        crontab="* * * * *",
+        slice_id=dbsession.query(Slice).all()[0].id,
+        recipients="recipient1@superset.com",
+        slack_channel="#test_channel",
     )
-    assert mock_run_alert.call_count == 1
+    dbsession.add(alert)
+    dbsession.commit()
+
+    sql_observer = SQLObserver(
+        sql=sql, alert_id=alert.id, database_id=utils.get_example_database().id,
+    )
+
+    if validator_type and validator_config:
+        validator = Validator(
+            validator_type=validator_type, config=validator_config, alert_id=alert.id,
+        )
+
+        dbsession.add(validator)
+
+    dbsession.add(sql_observer)
+    dbsession.commit()
+    return alert
+
+
+def test_alert_observer(setup_database):
+    dbsession = setup_database
+
+    # Test SQLObserver with int SQL return
+    alert1 = create_alert(dbsession, "SELECT 55")
+    observe(alert1.id, dbsession)
+    assert alert1.sql_observer[0].observations[-1].value == 55.0
+    assert alert1.sql_observer[0].observations[-1].error_msg is None
+
+    # Test SQLObserver with double SQL return
+    alert2 = create_alert(dbsession, "SELECT 30.0 as wage")
+    observe(alert2.id, dbsession)
+    assert alert2.sql_observer[0].observations[-1].value == 30.0
+    assert alert2.sql_observer[0].observations[-1].error_msg is None
+
+    # Test SQLObserver with NULL result
+    alert3 = create_alert(dbsession, "SELECT null as null_result")
+    observe(alert3.id, dbsession)
+    assert alert3.sql_observer[0].observations[-1].value is None
+    assert alert3.sql_observer[0].observations[-1].error_msg is None
+
+    # Test SQLObserver with empty SQL return
+    alert4 = create_alert(dbsession, "SELECT first FROM test_table WHERE first = -1")
+    observe(alert4.id, dbsession)
+    assert alert4.sql_observer[0].observations[-1].value is None
+    assert alert4.sql_observer[0].observations[-1].error_msg is not None
+
+    # Test SQLObserver with str result
+    alert5 = create_alert(dbsession, "SELECT 'test_string' as string_value")
+    observe(alert5.id, dbsession)
+    assert alert5.sql_observer[0].observations[-1].value is None
+    assert alert5.sql_observer[0].observations[-1].error_msg is not None
+
+    # Test SQLObserver with two row result
+    alert6 = create_alert(dbsession, "SELECT first FROM test_table")
+    observe(alert6.id, dbsession)
+    assert alert6.sql_observer[0].observations[-1].value is None
+    assert alert6.sql_observer[0].observations[-1].error_msg is not None
+
+    # Test SQLObserver with two column result
+    alert7 = create_alert(
+        dbsession, "SELECT first, second FROM test_table WHERE first = 1"
+    )
+    observe(alert7.id, dbsession)
+    assert alert7.sql_observer[0].observations[-1].value is None
+    assert alert7.sql_observer[0].observations[-1].error_msg is not None
+
+
+@patch("superset.tasks.schedules.deliver_alert")
+def test_evaluate_alert(mock_deliver_alert, setup_database):
+    dbsession = setup_database
+
+    # Test error with Observer SQL statement
+    alert1 = create_alert(dbsession, "$%^&")
+    evaluate_alert(alert1.id, alert1.label, dbsession)
+    assert alert1.logs[-1].state == AlertState.ERROR
+
+    # Test error with alert lacking observer
+    alert2 = dbsession.query(Alert).filter_by(label="No Observer").one()
+    evaluate_alert(alert2.id, alert2.label, dbsession)
+    assert alert2.logs[-1].state == AlertState.ERROR
+
+    # Test pass on alert lacking validator
+    alert3 = create_alert(dbsession, "SELECT 55")
+    evaluate_alert(alert3.id, alert3.label, dbsession)
+    assert alert3.logs[-1].state == AlertState.PASS
+
+    # Test triggering successful alert
+    alert4 = create_alert(dbsession, "SELECT 55", "not null", "{}")
+    evaluate_alert(alert4.id, alert4.label, dbsession)
     assert mock_deliver_alert.call_count == 1
+    assert alert4.logs[-1].state == AlertState.TRIGGER
+
+
+def test_check_validator():
+    # Test with invalid operator type
+    with pytest.raises(SupersetException):
+        check_validator("greater than", "{}")
+
+    # Test with empty config
+    with pytest.raises(SupersetException):
+        check_validator("operator", "{}")
+
+    # Test with invalid operator
+    with pytest.raises(SupersetException):
+        check_validator("operator", '{"op": "is", "threshold":50.0}')
+
+    # Test with invalid operator
+    with pytest.raises(SupersetException):
+        check_validator("operator", '{"op": "is", "threshold":50.0}')
+
+    # Test with invalid threshold
+    with pytest.raises(SupersetException):
+        check_validator("operator", '{"op": "is", "threshold":"hello"}')
+
+    # Test with float threshold and no errors
+    assert check_validator("operator", '{"op": ">=", "threshold": 50.0}') is None
+
+    # Test with int threshold and no errors
+    assert check_validator("operator", '{"op": "==", "threshold": 50}') is None
+
+
+def test_not_null_validator(setup_database):
+    dbsession = setup_database
+
+    # Test passing SQLObserver with 'null' SQL result
+    alert1 = create_alert(dbsession, "SELECT 0")
+    observe(alert1.id, dbsession)
+    assert not_null_validator(alert1.sql_observer[0], "{}") is False
+
+    # Test passing SQLObserver with empty SQL result
+    alert2 = create_alert(dbsession, "SELECT first FROM test_table WHERE first = -1")
+    observe(alert2.id, dbsession)
+    assert not_null_validator(alert2.sql_observer[0], "{}") is False
+
+    # Test triggering alert with non-null SQL result
+    alert3 = create_alert(dbsession, "SELECT 55")
+    observe(alert3.id, dbsession)
+    assert not_null_validator(alert3.sql_observer[0], "{}") is True
+
+
+def test_operator_validator(setup_database):
+    dbsession = setup_database
+
+    # Test passing SQLObserver with empty SQL result
+    alert1 = create_alert(dbsession, "SELECT first FROM test_table WHERE first = -1")
+    observe(alert1.id, dbsession)
+    assert (
+        operator_validator(alert1.sql_observer[0], '{"op": ">=", "threshold": 60}')
+        is False
+    )
+    # ensure that 0 threshold works
+    assert (
+        operator_validator(alert1.sql_observer[0], '{"op": ">=", "threshold": 0}')
+        is False
+    )
+
+    # Test passing SQLObserver with result that doesn't pass a greater than threshold
+    alert2 = create_alert(dbsession, "SELECT 55")
+    observe(alert2.id, dbsession)
+    assert (
+        operator_validator(alert2.sql_observer[0], '{"op": ">=", "threshold": 60}')
+        is False
+    )
+
+    # Test passing SQLObserver with result that passes a greater than threshold
+    assert (
+        operator_validator(alert2.sql_observer[0], '{"op": ">=", "threshold": 40}')
+        is True
+    )
+
+    # Test passing SQLObserver with result that doesn't pass a less than threshold
+    assert (
+        operator_validator(alert2.sql_observer[0], '{"op": "<=", "threshold": 40}')
+        is False
+    )
+
+    # Test passing SQLObserver with result that passes threshold
+    assert (
+        operator_validator(alert2.sql_observer[0], '{"op": "<=", "threshold": 60}')
+        is True
+    )
+
+    # Test passing SQLObserver with result that doesn't equal threshold
+    assert (
+        operator_validator(alert2.sql_observer[0], '{"op": "==", "threshold": 60}')
+        is False
+    )
+
+    # Test passing SQLObserver with result that equals threshold
+    assert (
+        operator_validator(alert2.sql_observer[0], '{"op": "==", "threshold": 55}')
+        is True
+    )
+
+
+def test_validate_observations(setup_database):
+    dbsession = setup_database
+
+    # Test False on alert with no validator
+    alert1 = create_alert(dbsession, "SELECT 55")
+    assert validate_observations(alert1.id, alert1.label, dbsession) is False
+
+    # Test False on alert with no observations
+    alert2 = create_alert(dbsession, "SELECT 55", "not null", "{}")
+    assert validate_observations(alert2.id, alert2.label, dbsession) is False
+
+    # Test False on alert that shouldnt be triggered
+    alert3 = create_alert(dbsession, "SELECT 0", "not null", "{}")
+    observe(alert3.id, dbsession)
+    assert validate_observations(alert3.id, alert3.label, dbsession) is False
+
+    # Test True on alert that should be triggered
+    alert4 = create_alert(
+        dbsession, "SELECT 55", "operator", '{"op": "<=", "threshold": 60}'
+    )
+    observe(alert4.id, dbsession)
+    assert validate_observations(alert4.id, alert4.label, dbsession) is True
+
+
+@patch("superset.tasks.slack_util.WebClient.files_upload")
+@patch("superset.tasks.schedules.send_email_smtp")
+@patch("superset.tasks.schedules._get_url_path")
+@patch("superset.utils.screenshots.ChartScreenshot.compute_and_cache")
+def test_deliver_alert_screenshot(
+    screenshot_mock, url_mock, email_mock, file_upload_mock, setup_database
+):
+    dbsession = setup_database
+    alert = create_alert(dbsession, "SELECT 55", "not null", "{}")
+    observe(alert.id, dbsession)
+
+    screenshot = read_fixture("sample.png")
+    screenshot_mock.return_value = screenshot
+
+    # TODO: fix AlertModelView.show url call from test
+    url_mock.side_effect = [
+        f"http://0.0.0.0:8080/alert/show/{alert.id}",
+        f"http://0.0.0.0:8080/superset/slice/{alert.slice_id}/",
+    ]
+
+    deliver_alert(alert.id, dbsession)
+    assert email_mock.call_args[1]["images"]["screenshot"] == screenshot
+    assert file_upload_mock.call_args[1] == {
+        "channels": alert.slack_channel,
+        "file": screenshot,
+        "initial_comment": f"\n*Triggered Alert: {alert.label} :redalert:*\n"
+        f"*Query*:```{alert.sql_observer[0].sql}```\n"
+        f"*Result*: {alert.observations[-1].value}\n"
+        f"*Reason*: {alert.observations[-1].value} {alert.validators[0].pretty_config}\n"
+        f"<http://0.0.0.0:8080/alert/show/{alert.id}"
+        f"|View Alert Details>\n<http://0.0.0.0:8080/superset/slice/{alert.slice_id}/"
+        "|*Explore in Superset*>",
+        "title": f"[Alert] {alert.label}",
+    }

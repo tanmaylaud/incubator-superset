@@ -18,10 +18,11 @@
 """Unit tests for Superset"""
 import imp
 import json
-from typing import Any, Dict, Union, List
+from typing import Any, Dict, Union, List, Optional
 from unittest.mock import Mock, patch
 
 import pandas as pd
+import pytest
 from flask import Response
 from flask_appbuilder.security.sqla import models as ab_models
 from flask_testing import TestCase
@@ -42,6 +43,65 @@ from superset.utils.core import get_example_database
 from superset.views.base_api import BaseSupersetModelRestApi
 
 FAKE_DB_NAME = "fake_db_100"
+test_client = app.test_client()
+
+
+def login(client: Any, username: str = "admin", password: str = "general"):
+    resp = get_resp(client, "/login/", data=dict(username=username, password=password))
+    assert "User confirmation needed" not in resp
+
+
+def get_resp(
+    client: Any,
+    url: str,
+    data: Any = None,
+    follow_redirects: bool = True,
+    raise_on_error: bool = True,
+    json_: Optional[str] = None,
+):
+    """Shortcut to get the parsed results while following redirects"""
+    if data:
+        resp = client.post(url, data=data, follow_redirects=follow_redirects)
+    elif json_:
+        resp = client.post(url, json=json_, follow_redirects=follow_redirects)
+    else:
+        resp = client.get(url, follow_redirects=follow_redirects)
+    if raise_on_error and resp.status_code > 400:
+        raise Exception("http request failed with code {}".format(resp.status_code))
+    return resp.data.decode("utf-8")
+
+
+def post_assert_metric(
+    client: Any, uri: str, data: Dict[str, Any], func_name: str
+) -> Response:
+    """
+    Simple client post with an extra assertion for statsd metrics
+
+    :param client: test client for superset api requests
+    :param uri: The URI to use for the HTTP POST
+    :param data: The JSON data payload to be posted
+    :param func_name: The function name that the HTTP POST triggers
+    for the statsd metric assertion
+    :return: HTTP Response
+    """
+    with patch.object(
+        BaseSupersetModelRestApi, "incr_stats", return_value=None
+    ) as mock_method:
+        rv = client.post(uri, json=data)
+    if 200 <= rv.status_code < 400:
+        mock_method.assert_called_once_with("success", func_name)
+    else:
+        mock_method.assert_called_once_with("error", func_name)
+    return rv
+
+
+@pytest.fixture
+def logged_in_admin():
+    """Fixture with app context and logged in admin user."""
+    with app.app_context():
+        login(test_client, username="admin")
+        yield
+        test_client.get("/logout/", follow_redirects=True)
 
 
 class SupersetTestCase(TestCase):
@@ -51,12 +111,22 @@ class SupersetTestCase(TestCase):
         "mysql": "superset",
         "postgresql": "public",
         "presto": "default",
+        "hive": "default",
     }
 
     maxDiff = -1
 
     def create_app(self):
         return app
+
+    @staticmethod
+    def get_birth_names_dataset():
+        example_db = get_example_database()
+        return (
+            db.session.query(SqlaTable)
+            .filter_by(database=example_db, table_name="birth_names")
+            .one()
+        )
 
     @staticmethod
     def create_user_with_roles(username: str, roles: List[str]):
@@ -75,6 +145,7 @@ class SupersetTestCase(TestCase):
             assert user_to_create
         user_to_create.roles = [security_manager.find_role(r) for r in roles]
         db.session.commit()
+        return user_to_create
 
     @staticmethod
     def create_user(
@@ -145,8 +216,7 @@ class SupersetTestCase(TestCase):
         return obj
 
     def login(self, username="admin", password="general"):
-        resp = self.get_resp("/login/", data=dict(username=username, password=password))
-        self.assertNotIn("User confirmation needed", resp)
+        return login(self.client, username, password)
 
     def get_slice(
         self, slice_name: str, session: Session, expunge_from_session: bool = True
@@ -189,16 +259,7 @@ class SupersetTestCase(TestCase):
     def get_resp(
         self, url, data=None, follow_redirects=True, raise_on_error=True, json_=None
     ):
-        """Shortcut to get the parsed results while following redirects"""
-        if data:
-            resp = self.client.post(url, data=data, follow_redirects=follow_redirects)
-        elif json_:
-            resp = self.client.post(url, json=json_, follow_redirects=follow_redirects)
-        else:
-            resp = self.client.get(url, follow_redirects=follow_redirects)
-        if raise_on_error and resp.status_code > 400:
-            raise Exception("http request failed with code {}".format(resp.status_code))
-        return resp.data.decode("utf-8")
+        return get_resp(self.client, url, data, follow_redirects, raise_on_error, json_)
 
     def get_json_resp(
         self, url, data=None, follow_redirects=True, raise_on_error=True, json_=None
@@ -317,22 +378,22 @@ class SupersetTestCase(TestCase):
         if database:
             db.session.delete(database)
 
-    def create_fake_presto_db(self):
+    def create_fake_db_for_macros(self):
         self.login(username="admin")
-        database_name = "presto"
+        database_name = "db_for_macros_testing"
         db_id = 200
         return self.get_or_create(
             cls=models.Database,
             criteria={"database_name": database_name},
             session=db.session,
-            sqlalchemy_uri="presto://user@host:8080/hive",
+            sqlalchemy_uri="db_for_macros_testing://user@host:8080/hive",
             id=db_id,
         )
 
-    def delete_fake_presto_db(self):
+    def delete_fake_db_for_macros(self):
         database = (
             db.session.query(Database)
-            .filter(Database.database_name == "presto")
+            .filter(Database.database_name == "db_for_macros_testing")
             .scalar()
         )
         if database:
@@ -405,24 +466,7 @@ class SupersetTestCase(TestCase):
     def post_assert_metric(
         self, uri: str, data: Dict[str, Any], func_name: str
     ) -> Response:
-        """
-        Simple client post with an extra assertion for statsd metrics
-
-        :param uri: The URI to use for the HTTP POST
-        :param data: The JSON data payload to be posted
-        :param func_name: The function name that the HTTP POST triggers
-        for the statsd metric assertion
-        :return: HTTP Response
-        """
-        with patch.object(
-            BaseSupersetModelRestApi, "incr_stats", return_value=None
-        ) as mock_method:
-            rv = self.client.post(uri, json=data)
-        if 200 <= rv.status_code < 400:
-            mock_method.assert_called_once_with("success", func_name)
-        else:
-            mock_method.assert_called_once_with("error", func_name)
-        return rv
+        return post_assert_metric(self.client, uri, data, func_name)
 
     def put_assert_metric(
         self, uri: str, data: Dict[str, Any], func_name: str
