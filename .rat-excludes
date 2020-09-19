@@ -1,3 +1,4 @@
+# Note: these patterns are applied to single files or directories, not full paths
 .gitignore
 .gitattributes
 .gitkeep
@@ -32,16 +33,16 @@ apache_superset.egg-info
 .*csv
 # Generated doc files
 env/*
-docs/_build/*
-docs/_modules/*
-docs/_static/*
+docs/README.md
+docs/.htaccess*
 _build/*
 _static/*
 .buildinfo
 searchindex.js
 # auto generated
-requirements.txt
+requirements/*
 # vendorized
 vendor/*
 # github configuration
 .github/*
+.*mdx

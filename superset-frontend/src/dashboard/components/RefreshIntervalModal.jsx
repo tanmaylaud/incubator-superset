@@ -19,10 +19,12 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import Select from 'src/components/Select';
-import { t } from '@superset-ui/translation';
-import { Alert, Button } from 'react-bootstrap';
+import { t } from '@superset-ui/core';
+import { Alert } from 'react-bootstrap';
+import Button from 'src/components/Button';
 
-import ModalTrigger from '../../components/ModalTrigger';
+import ModalTrigger from 'src/components/ModalTrigger';
+import FormLabel from 'src/components/FormLabel';
 
 const propTypes = {
   triggerNode: PropTypes.node.isRequired,
@@ -96,7 +98,7 @@ class RefreshIntervalModal extends React.PureComponent {
         modalTitle={t('Refresh Interval')}
         modalBody={
           <div>
-            {t('Choose the refresh frequency for this dashboard')}
+            <FormLabel>{t('Refresh frequency')}</FormLabel>
             <Select
               options={options}
               value={this.state.refreshFrequency}
@@ -115,10 +117,12 @@ class RefreshIntervalModal extends React.PureComponent {
         }
         modalFooter={
           <>
-            <Button bsStyle="primary" onClick={this.onSave}>
+            <Button buttonStyle="primary" buttonSize="sm" onClick={this.onSave}>
               {editMode ? t('Save') : t('Save for this session')}
             </Button>
-            <Button onClick={this.onCancel}>{t('Cancel')}</Button>
+            <Button onClick={this.onCancel} buttonSize="sm">
+              {t('Cancel')}
+            </Button>
           </>
         }
       />

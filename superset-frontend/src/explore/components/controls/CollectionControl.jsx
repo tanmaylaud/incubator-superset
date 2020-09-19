@@ -29,7 +29,7 @@ import {
 
 import { InfoTooltipWithTrigger } from '@superset-ui/chart-controls';
 import ControlHeader from '../ControlHeader';
-import controlMap from './';
+import controlMap from '.';
 import './CollectionControl.less';
 
 const propTypes = {
@@ -68,19 +68,24 @@ export default class CollectionControl extends React.Component {
     super(props);
     this.onAdd = this.onAdd.bind(this);
   }
+
   onChange(i, value) {
     Object.assign(this.props.value[i], value);
     this.props.onChange(this.props.value);
   }
+
   onAdd() {
     this.props.onChange(this.props.value.concat([this.props.itemGenerator()]));
   }
+
   onSortEnd({ oldIndex, newIndex }) {
     this.props.onChange(arrayMove(this.props.value, oldIndex, newIndex));
   }
+
   removeItem(i) {
     this.props.onChange(this.props.value.filter((o, ix) => i !== ix));
   }
+
   renderList() {
     if (this.props.value.length === 0) {
       return <div className="text-muted">{this.props.placeholder}</div>;
@@ -92,36 +97,41 @@ export default class CollectionControl extends React.Component {
         lockAxis="y"
         onSortEnd={this.onSortEnd.bind(this)}
       >
-        {this.props.value.map((o, i) => (
-          <SortableListGroupItem
-            className="clearfix"
-            key={this.props.keyAccessor(o)}
-            index={i}
-          >
-            <div className="pull-left m-r-5">
-              <SortableDragger />
-            </div>
-            <div className="pull-left">
-              <Control
-                {...this.props}
-                {...o}
-                onChange={this.onChange.bind(this, i)}
-              />
-            </div>
-            <div className="pull-right">
-              <InfoTooltipWithTrigger
-                icon="times"
-                label="remove-item"
-                tooltip="remove item"
-                bsStyle="primary"
-                onClick={this.removeItem.bind(this, i)}
-              />
-            </div>
-          </SortableListGroupItem>
-        ))}
+        {this.props.value.map((o, i) => {
+          // label relevant only for header, not here
+          const { label, ...commonProps } = this.props;
+          return (
+            <SortableListGroupItem
+              className="clearfix"
+              key={this.props.keyAccessor(o)}
+              index={i}
+            >
+              <div className="pull-left m-r-5">
+                <SortableDragger />
+              </div>
+              <div className="pull-left">
+                <Control
+                  {...commonProps}
+                  {...o}
+                  onChange={this.onChange.bind(this, i)}
+                />
+              </div>
+              <div className="pull-right">
+                <InfoTooltipWithTrigger
+                  icon="times"
+                  label="remove-item"
+                  tooltip="remove item"
+                  bsStyle="primary"
+                  onClick={this.removeItem.bind(this, i)}
+                />
+              </div>
+            </SortableListGroupItem>
+          );
+        })}
       </SortableListGroup>
     );
   }
+
   render() {
     return (
       <div className="CollectionControl">

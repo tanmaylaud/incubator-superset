@@ -17,11 +17,11 @@
   under the License.
 #}
 
+<!DOCTYPE html>
 {% import 'appbuilder/general/lib.html' as lib %}
 {% from 'superset/partials/asset_bundle.html' import css_bundle, js_bundle with context %}
 
 {% set favicons = appbuilder.app.config['FAVICONS'] %}
-<!DOCTYPE html>
 <html>
   <head>
     <title>
@@ -67,9 +67,7 @@
   <body {% if standalone_mode %}class="standalone"{% endif %}>
     {% block navbar %}
       {% if not standalone_mode %}
-        <header class="top" role="header">
-          {% include 'appbuilder/navbar.html' %}
-        </header>
+        {% include 'appbuilder/navbar.html' %}
       {% endif %}
     {% endblock %}
 
@@ -97,7 +95,9 @@
         </div>
       </div>
     </div>
+
     {% block tail_js %}
+      {{ js_bundle('menu') }}
       {% if entry %}
         {{ js_bundle(entry) }}
       {% endif %}

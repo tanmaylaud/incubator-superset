@@ -20,9 +20,11 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import moment from 'moment';
 import { Table } from 'reactable-arc';
-import { Label, ProgressBar, Well } from 'react-bootstrap';
-import { t } from '@superset-ui/translation';
+import { ProgressBar, Well } from 'react-bootstrap';
+import Label from 'src/components/Label';
+import { t } from '@superset-ui/core';
 
+import Button from 'src/components/Button';
 import Link from '../../components/Link';
 import ResultSet from './ResultSet';
 import ModalTrigger from '../../components/ModalTrigger';
@@ -46,26 +48,11 @@ const defaultProps = {
 };
 
 class QueryTable extends React.PureComponent {
-  constructor(props) {
-    super(props);
-    const uri = window.location.toString();
-    const cleanUri = uri.substring(0, uri.indexOf('#'));
-    this.state = {
-      cleanUri,
-      showVisualizeModal: false,
-      activeQuery: null,
-    };
-  }
   openQuery(id) {
     const url = `/superset/sqllab?queryId=${id}`;
     window.open(url);
   }
-  hideVisualizeModal() {
-    this.setState({ showVisualizeModal: false });
-  }
-  showVisualizeModal(query) {
-    this.setState({ activeQuery: query, showVisualizeModal: true });
-  }
+
   restoreSql(query) {
     this.props.actions.queryEditorSetSql({ id: query.sqlEditorId }, query.sql);
   }
@@ -73,15 +60,19 @@ class QueryTable extends React.PureComponent {
   openQueryInNewTab(query) {
     this.props.actions.cloneQueryToNewTab(query, true);
   }
+
   openAsyncResults(query, displayLimit) {
     this.props.actions.fetchQueryResults(query, displayLimit);
   }
+
   clearQueryResults(query) {
     this.props.actions.clearQueryResults(query);
   }
+
   removeQuery(query) {
     this.props.actions.removeQuery(query);
   }
+
   render() {
     const data = this.props.queries
       .map(query => {
@@ -98,31 +89,34 @@ class QueryTable extends React.PureComponent {
           </div>
         );
         q.user = (
-          <button
-            className="btn btn-link btn-xs"
+          <Button
+            buttonSize="small"
+            buttonStyle="link"
             onClick={this.props.onUserClicked.bind(this, q.userId)}
           >
             {q.user}
-          </button>
+          </Button>
         );
         q.db = (
-          <button
-            className="btn btn-link btn-xs"
+          <Button
+            buttonSize="small"
+            buttonStyle="link"
             onClick={this.props.onDbClicked.bind(this, q.dbId)}
           >
             {q.db}
-          </button>
+          </Button>
         );
         q.started = moment(q.startDttm).format('HH:mm:ss');
         q.querylink = (
           <div style={{ width: '100px' }}>
-            <button
-              className="btn btn-link btn-xs"
+            <Button
+              buttonSize="small"
+              buttonStyle="link"
               onClick={this.openQuery.bind(this, q.queryId)}
             >
               <i className="fa fa-external-link m-r-3" />
               {t('Edit')}
-            </button>
+            </Button>
           </div>
         );
         q.sql = (
@@ -141,7 +135,7 @@ class QueryTable extends React.PureComponent {
               bsSize="large"
               className="ResultsModal"
               triggerNode={
-                <Label bsStyle="info" style={{ cursor: 'pointer' }}>
+                <Label bsStyle="info" className="pointer">
                   {t('view results')}
                 </Label>
               }

@@ -20,16 +20,20 @@ import React from 'react';
 import { mount, shallow } from 'enzyme';
 import { act } from 'react-dom/test-utils';
 import { QueryParamProvider } from 'use-query-params';
-import { supersetTheme, ThemeProvider } from '@superset-ui/style';
+import { supersetTheme, ThemeProvider } from '@superset-ui/core';
 
+import Button from 'src/components/Button';
+import { Empty } from 'src/common/components';
+import CardCollection from 'src/components/ListView/CardCollection';
+import { CardSortSelect } from 'src/components/ListView/CardSortSelect';
+import IndeterminateCheckbox from 'src/components/IndeterminateCheckbox';
 import ListView from 'src/components/ListView/ListView';
 import ListViewFilters from 'src/components/ListView/Filters';
 import ListViewPagination from 'src/components/ListView/Pagination';
 import Pagination from 'src/components/Pagination';
-import Button from 'src/components/Button';
+import TableCollection from 'src/components/ListView/TableCollection';
 
 import waitForComponentToPaint from 'spec/helpers/waitForComponentToPaint';
-import IndeterminateCheckbox from 'src/components/IndeterminateCheckbox';
 
 function makeMockLocation(query) {
   const queryStr = encodeURIComponent(query);
@@ -98,6 +102,14 @@ const mockedProps = {
       name: 'do something',
       style: 'danger',
       onSelect: jest.fn(),
+    },
+  ],
+  cardSortSelectOptions: [
+    {
+      desc: false,
+      id: 'something',
+      label: 'Alphabetical',
+      value: 'alphabetical',
     },
   ],
 };
@@ -281,6 +293,44 @@ describe('ListView', () => {
     );
   });
 
+  it('disables card view based on prop', async () => {
+    expect(wrapper.find(CardCollection).exists()).toBe(false);
+    expect(wrapper.find(CardSortSelect).exists()).toBe(false);
+    expect(wrapper.find(TableCollection).exists()).toBe(true);
+  });
+
+  it('enables card view based on prop', async () => {
+    const wrapper2 = factory({
+      ...mockedProps,
+      renderCard: jest.fn(),
+      initialSort: [{ id: 'something' }],
+    });
+    await waitForComponentToPaint(wrapper2);
+    expect(wrapper2.find(CardCollection).exists()).toBe(true);
+    expect(wrapper2.find(CardSortSelect).exists()).toBe(true);
+    expect(wrapper2.find(TableCollection).exists()).toBe(false);
+  });
+
+  it('allows setting the default view mode', async () => {
+    const wrapper2 = factory({
+      ...mockedProps,
+      renderCard: jest.fn(),
+      defaultViewMode: 'card',
+      initialSort: [{ id: 'something' }],
+    });
+    await waitForComponentToPaint(wrapper2);
+    expect(wrapper2.find(CardCollection).exists()).toBe(true);
+
+    const wrapper3 = factory({
+      ...mockedProps,
+      renderCard: jest.fn(),
+      defaultViewMode: 'table',
+      initialSort: [{ id: 'something' }],
+    });
+    await waitForComponentToPaint(wrapper3);
+    expect(wrapper3.find(TableCollection).exists()).toBe(true);
+  });
+
   it('Throws an exception if filter missing in columns', () => {
     expect.assertions(1);
     const props = {
@@ -295,6 +345,16 @@ describe('ListView', () => {
     }).toThrowErrorMatchingInlineSnapshot(
       '"Invalid filter config, some_column is not present in columns"',
     );
+  });
+
+  it('renders and empty state when there is no data', () => {
+    const props = {
+      ...mockedProps,
+      data: [],
+    };
+
+    const wrapper2 = factory(props);
+    expect(wrapper2.find(Empty)).toExist();
   });
 
   it('renders UI filters', () => {
@@ -376,5 +436,25 @@ describe('ListView', () => {
         },
       ]
     `);
+  });
+
+  it('calls fetchData on card view sort', async () => {
+    const wrapper2 = factory({
+      ...mockedProps,
+      renderCard: jest.fn(),
+      initialSort: [{ id: 'something' }],
+    });
+
+    act(() => {
+      wrapper2.find('[data-test="card-sort-select"]').first().props().onChange({
+        desc: false,
+        id: 'something',
+        label: 'Alphabetical',
+        value: 'alphabetical',
+      });
+    });
+
+    wrapper2.update();
+    expect(mockedProps.fetchData).toHaveBeenCalled();
   });
 });

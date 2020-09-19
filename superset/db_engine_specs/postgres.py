@@ -38,6 +38,7 @@ class PostgresBaseEngineSpec(BaseEngineSpec):
     """ Abstract class for Postgres 'like' databases """
 
     engine = ""
+    engine_name = "PostgreSQL"
 
     _time_grain_expressions = {
         None: "{col}",
@@ -52,7 +53,9 @@ class PostgresBaseEngineSpec(BaseEngineSpec):
     }
 
     @classmethod
-    def fetch_data(cls, cursor: Any, limit: int) -> List[Tuple[Any, ...]]:
+    def fetch_data(
+        cls, cursor: Any, limit: Optional[int] = None
+    ) -> List[Tuple[Any, ...]]:
         cursor.tzinfo_factory = FixedOffsetTimezone
         if not cursor.description:
             return []

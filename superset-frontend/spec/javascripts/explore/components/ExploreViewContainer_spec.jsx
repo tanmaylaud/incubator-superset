@@ -25,7 +25,7 @@ import { shallow } from 'enzyme';
 import getInitialState from 'src/explore/reducers/getInitialState';
 import ExploreViewContainer from 'src/explore/components/ExploreViewContainer';
 import QueryAndSaveBtns from 'src/explore/components/QueryAndSaveBtns';
-import ControlPanelsContainer from 'src/explore/components/ControlPanelsContainer';
+import ConnectedControlPanelsContainer from 'src/explore/components/ControlPanelsContainer';
 import ChartContainer from 'src/explore/components/ExploreChartPanel';
 import * as featureFlags from 'src/featureFlags';
 
@@ -72,14 +72,14 @@ describe('ExploreViewContainer', () => {
   });
 
   it('renders ControlPanelsContainer', () => {
-    expect(wrapper.find(ControlPanelsContainer)).toExist();
+    expect(wrapper.find(ConnectedControlPanelsContainer)).toExist();
   });
 
   it('renders ChartContainer', () => {
     expect(wrapper.find(ChartContainer)).toExist();
   });
 
-  describe('componentWillReceiveProps()', () => {
+  describe('UNSAFE_componentWillReceiveProps()', () => {
     it('when controls change, should call resetControls', () => {
       expect(wrapper.instance().props.controls.viz_type.value).toBe('table');
       const resetControls = sinon.stub(
@@ -91,7 +91,7 @@ describe('ExploreViewContainer', () => {
         'triggerQuery',
       );
 
-      // triggers componentWillReceiveProps
+      // triggers UNSAFE_componentWillReceiveProps
       wrapper.setProps({
         controls: {
           viz_type: {

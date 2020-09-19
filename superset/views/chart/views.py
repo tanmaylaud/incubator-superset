@@ -20,13 +20,18 @@ from flask_appbuilder import expose, has_access
 from flask_appbuilder.models.sqla.interface import SQLAInterface
 from flask_babel import lazy_gettext as _
 
-from superset import app
+from superset import app, db
 from superset.connectors.connector_registry import ConnectorRegistry
 from superset.constants import RouteMethod
 from superset.models.slice import Slice
 from superset.typing import FlaskResponse
 from superset.utils import core as utils
-from superset.views.base import check_ownership, DeleteMixin, SupersetModelView
+from superset.views.base import (
+    check_ownership,
+    common_bootstrap_payload,
+    DeleteMixin,
+    SupersetModelView,
+)
 from superset.views.chart.mixin import SliceMixin
 
 
@@ -56,13 +61,14 @@ class SliceModelView(
     def add(self) -> FlaskResponse:
         datasources = [
             {"value": str(d.id) + "__" + d.type, "label": repr(d)}
-            for d in ConnectorRegistry.get_all_datasources()
+            for d in ConnectorRegistry.get_all_datasources(db.session)
         ]
+        payload = {
+            "datasources": sorted(datasources, key=lambda d: d["label"]),
+            "common": common_bootstrap_payload(),
+        }
         return self.render_template(
-            "superset/add_slice.html",
-            bootstrap_data=json.dumps(
-                {"datasources": sorted(datasources, key=lambda d: d["label"])}
-            ),
+            "superset/add_slice.html", bootstrap_data=json.dumps(payload)
         )
 
     @expose("/list/")
@@ -84,6 +90,7 @@ class SliceAsync(SliceModelView):  # pylint: disable=too-many-ancestors
         "creator",
         "datasource_id",
         "datasource_link",
+        "datasource_url",
         "datasource_name_text",
         "datasource_type",
         "description",

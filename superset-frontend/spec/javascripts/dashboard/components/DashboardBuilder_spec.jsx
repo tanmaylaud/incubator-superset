@@ -22,7 +22,7 @@ import { shallow, mount } from 'enzyme';
 import sinon from 'sinon';
 
 import { ParentSize } from '@vx/responsive';
-import { supersetTheme, ThemeProvider } from '@superset-ui/style';
+import { supersetTheme, ThemeProvider } from '@superset-ui/core';
 import { Sticky, StickyContainer } from 'react-sticky';
 import { TabContainer, TabContent, TabPane } from 'react-bootstrap';
 
@@ -32,7 +32,6 @@ import DashboardComponent from 'src/dashboard/containers/DashboardComponent';
 import DashboardHeader from 'src/dashboard/containers/DashboardHeader';
 import DashboardGrid from 'src/dashboard/containers/DashboardGrid';
 import * as dashboardStateActions from 'src/dashboard/actions/dashboardState';
-import { BUILDER_PANE_TYPE } from 'src/dashboard/util/constants';
 
 import WithDragDropContext from '../helpers/WithDragDropContext';
 import {
@@ -64,7 +63,6 @@ describe('DashboardBuilder', () => {
     deleteTopLevelTabs() {},
     editMode: false,
     showBuilderPane() {},
-    builderPaneType: BUILDER_PANE_TYPE.NONE,
     setColorSchemeAndUnsavedChanges() {},
     colorScheme: undefined,
     handleComponentDrop() {},
@@ -155,7 +153,6 @@ describe('DashboardBuilder', () => {
     wrapper.setProps({
       ...props,
       editMode: true,
-      builderPaneType: BUILDER_PANE_TYPE.ADD_COMPONENTS,
     });
     expect(wrapper.find(BuilderComponentPane)).toExist();
   });
@@ -167,7 +164,6 @@ describe('DashboardBuilder', () => {
     wrapper.setProps({
       ...props,
       editMode: true,
-      builderPaneType: BUILDER_PANE_TYPE.COLORS,
     });
     expect(wrapper.find(BuilderComponentPane)).toExist();
   });

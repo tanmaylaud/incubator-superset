@@ -18,10 +18,11 @@
  */
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Label, OverlayTrigger } from 'react-bootstrap';
-import { t } from '@superset-ui/translation';
+import { OverlayTrigger } from 'react-bootstrap';
+import { t, withTheme } from '@superset-ui/core';
 import { InfoTooltipWithTrigger } from '@superset-ui/chart-controls';
 
+import Label from 'src/components/Label';
 import AdhocFilterEditPopover from './AdhocFilterEditPopover';
 import AdhocFilter from '../AdhocFilter';
 import columnType from '../propTypes/columnType';
@@ -40,8 +41,7 @@ const propTypes = {
   datasource: PropTypes.object,
   partitionColumn: PropTypes.string,
 };
-
-export default class AdhocFilterOption extends React.PureComponent {
+class AdhocFilterOption extends React.PureComponent {
   constructor(props) {
     super(props);
     this.closeFilterEditOverlay = this.closeFilterEditOverlay.bind(this);
@@ -72,7 +72,7 @@ export default class AdhocFilterOption extends React.PureComponent {
   }
 
   render() {
-    const { adhocFilter } = this.props;
+    const { adhocFilter, theme } = this.props;
     const overlay = (
       <AdhocFilterEditPopover
         onResize={this.onPopoverResize}
@@ -82,6 +82,7 @@ export default class AdhocFilterOption extends React.PureComponent {
         options={this.props.options}
         datasource={this.props.datasource}
         partitionColumn={this.props.partitionColumn}
+        theme={theme}
       />
     );
     return (
@@ -122,4 +123,7 @@ export default class AdhocFilterOption extends React.PureComponent {
     );
   }
 }
+
+export default withTheme(AdhocFilterOption);
+
 AdhocFilterOption.propTypes = propTypes;

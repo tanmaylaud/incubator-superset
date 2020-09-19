@@ -18,15 +18,17 @@
  */
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Row, Col, Button, Modal, FormControl } from 'react-bootstrap';
+import { Row, Col, Modal, FormControl } from 'react-bootstrap';
+import Button from 'src/components/Button';
 import Dialog from 'react-bootstrap-dialog';
 import { AsyncSelect } from 'src/components/Select';
-import AceEditor from 'react-ace';
 import rison from 'rison';
-import { t } from '@superset-ui/translation';
-import { SupersetClient } from '@superset-ui/connection';
+import { t, SupersetClient } from '@superset-ui/core';
 
 import FormLabel from 'src/components/FormLabel';
+import { JsonEditor } from 'src/components/AsyncAceEditor';
+
+import ColorSchemeControlWrapper from 'src/dashboard/components/ColorSchemeControlWrapper';
 import getClientErrorObject from '../../utils/getClientErrorObject';
 import withToasts from '../../messageToasts/enhancers/withToasts';
 import '../stylesheets/buttons.less';
@@ -35,14 +37,20 @@ const propTypes = {
   dashboardId: PropTypes.number.isRequired,
   show: PropTypes.bool.isRequired,
   onHide: PropTypes.func,
-  onDashboardSave: PropTypes.func,
+  colorScheme: PropTypes.object,
+  setColorSchemeAndUnsavedChanges: PropTypes.func,
+  onSubmit: PropTypes.func,
   addSuccessToast: PropTypes.func.isRequired,
+  onlyApply: PropTypes.bool,
 };
 
 const defaultProps = {
   onHide: () => {},
-  onDashboardSave: () => {},
+  setColorSchemeAndUnsavedChanges: () => {},
+  onSubmit: () => {},
   show: false,
+  colorScheme: undefined,
+  onlyApply: false,
 };
 
 class PropertiesModal extends React.PureComponent {
@@ -55,6 +63,7 @@ class PropertiesModal extends React.PureComponent {
         slug: '',
         owners: [],
         json_metadata: '',
+        colorScheme: props.colorScheme,
       },
       isDashboardLoaded: false,
       isAdvancedOpen: false,
@@ -62,14 +71,20 @@ class PropertiesModal extends React.PureComponent {
     this.onChange = this.onChange.bind(this);
     this.onMetadataChange = this.onMetadataChange.bind(this);
     this.onOwnersChange = this.onOwnersChange.bind(this);
-    this.save = this.save.bind(this);
+    this.submit = this.submit.bind(this);
     this.toggleAdvanced = this.toggleAdvanced.bind(this);
     this.loadOwnerOptions = this.loadOwnerOptions.bind(this);
     this.handleErrorResponse = this.handleErrorResponse.bind(this);
+    this.onColorSchemeChange = this.onColorSchemeChange.bind(this);
   }
 
   componentDidMount() {
     this.fetchDashboardDetails();
+    JsonEditor.preload();
+  }
+
+  onColorSchemeChange(value) {
+    this.updateFormState('colorScheme', value);
   }
 
   onOwnersChange(value) {
@@ -155,39 +170,55 @@ class PropertiesModal extends React.PureComponent {
     });
   }
 
-  save(e) {
+  submit(e) {
     e.preventDefault();
     e.stopPropagation();
     const { values } = this.state;
+    const { onlyApply } = this.props;
     const owners = values.owners.map(o => o.value);
-
-    SupersetClient.put({
-      endpoint: `/api/v1/dashboard/${this.props.dashboardId}`,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        dashboard_title: values.dashboard_title,
-        slug: values.slug || null,
-        json_metadata: values.json_metadata || null,
-        owners,
-      }),
-    }).then(({ json }) => {
-      this.props.addSuccessToast(t('The dashboard has been saved'));
-      this.props.onDashboardSave({
+    if (onlyApply) {
+      this.props.onSubmit({
         id: this.props.dashboardId,
-        title: json.result.dashboard_title,
-        slug: json.result.slug,
-        jsonMetadata: json.result.json_metadata,
-        ownerIds: json.result.owners,
+        title: values.dashboard_title,
+        slug: values.slug,
+        jsonMetadata: values.json_metadata,
+        ownerIds: owners,
+        colorScheme: values.colorScheme,
       });
       this.props.onHide();
-    }, this.handleErrorResponse);
+    } else {
+      SupersetClient.put({
+        endpoint: `/api/v1/dashboard/${this.props.dashboardId}`,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dashboard_title: values.dashboard_title,
+          slug: values.slug || null,
+          json_metadata: values.json_metadata || null,
+          owners,
+        }),
+      }).then(({ json }) => {
+        this.props.addSuccessToast(t('The dashboard has been saved'));
+        this.props.onSubmit({
+          id: this.props.dashboardId,
+          title: json.result.dashboard_title,
+          slug: json.result.slug,
+          jsonMetadata: json.result.json_metadata,
+          ownerIds: json.result.owners,
+          colorScheme: values.colorScheme,
+        });
+        this.props.onHide();
+      }, this.handleErrorResponse);
+    }
   }
 
   render() {
-    const { values, isDashboardLoaded, isAdvancedOpen } = this.state;
+    const { values, isDashboardLoaded, isAdvancedOpen, errors } = this.state;
+    const { onHide, onlyApply } = this.props;
+
+    const saveLabel = onlyApply ? t('Apply') : t('Save');
     return (
       <Modal show={this.props.show} onHide={this.props.onHide} bsSize="lg">
-        <form onSubmit={this.save}>
+        <form onSubmit={this.submit}>
           <Modal.Header closeButton>
             <Modal.Title>
               <div>
@@ -249,15 +280,18 @@ class PropertiesModal extends React.PureComponent {
                   )}
                 </p>
               </Col>
+              <Col md={6}>
+                <h3 style={{ marginTop: '1em' }}>{t('Colors')}</h3>
+                <ColorSchemeControlWrapper
+                  onChange={this.onColorSchemeChange}
+                  colorScheme={values.colorScheme}
+                />
+              </Col>
             </Row>
             <Row>
               <Col md={12}>
                 <h3 style={{ marginTop: '1em' }}>
-                  <button
-                    type="button"
-                    className="text-button"
-                    onClick={this.toggleAdvanced}
-                  >
+                  <Button buttonStyle="link" onClick={this.toggleAdvanced}>
                     <i
                       className={`fa fa-angle-${
                         isAdvancedOpen ? 'down' : 'right'
@@ -265,20 +299,19 @@ class PropertiesModal extends React.PureComponent {
                       style={{ minWidth: '1em' }}
                     />
                     {t('Advanced')}
-                  </button>
+                  </Button>
                 </h3>
                 {isAdvancedOpen && (
                   <>
                     <FormLabel htmlFor="json_metadata">
                       {t('JSON Metadata')}
                     </FormLabel>
-                    <AceEditor
-                      mode="json"
+                    <JsonEditor
+                      showLoadingForImport
                       name="json_metadata"
                       defaultValue={this.defaultMetadataValue}
                       value={values.json_metadata}
                       onChange={this.onMetadataChange}
-                      theme="textmate"
                       tabSize={2}
                       width="100%"
                       height="200px"
@@ -297,14 +330,15 @@ class PropertiesModal extends React.PureComponent {
             <span className="float-right">
               <Button
                 type="submit"
-                bsSize="sm"
-                bsStyle="primary"
+                buttonSize="sm"
+                buttonStyle="primary"
                 className="m-r-5"
-                disabled={this.state.errors.length > 0}
+                disabled={errors.length > 0}
+                cta
               >
-                {t('Save')}
+                {saveLabel}
               </Button>
-              <Button type="button" bsSize="sm" onClick={this.props.onHide}>
+              <Button type="button" buttonSize="sm" onClick={onHide} cta>
                 {t('Cancel')}
               </Button>
               <Dialog

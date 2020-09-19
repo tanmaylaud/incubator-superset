@@ -19,12 +19,10 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import {
-  Button,
   DropdownButton,
   FormControl,
   FormGroup,
   InputGroup,
-  Label,
   MenuItem,
   OverlayTrigger,
   Popover,
@@ -33,16 +31,17 @@ import {
   Tabs,
   Tooltip,
 } from 'react-bootstrap';
+import Button from 'src/components/Button';
 import Datetime from 'react-datetime';
 import 'react-datetime/css/react-datetime.css';
 import moment from 'moment';
-import { t } from '@superset-ui/translation';
-import { styled, withTheme } from '@superset-ui/style';
+import { t, styled, withTheme } from '@superset-ui/core';
 
 import {
   buildTimeRangeString,
   formatTimeRange,
 } from 'src/explore/dateFilterUtils';
+import Label from 'src/components/Label';
 import './DateFilterControl.less';
 import ControlHeader from '../ControlHeader';
 import PopoverSection from '../../../components/PopoverSection';
@@ -87,8 +86,8 @@ const DEFAULT_SINCE = moment()
 const DEFAULT_UNTIL = moment().utc().startOf('day').format(MOMENT_FORMAT);
 const SEPARATOR = ' : ';
 const FREEFORM_TOOLTIP = t(
-  'Superset supports smart date parsing. Strings like `last sunday` or ' +
-    '`last october` can be used.',
+  'Superset supports smart date parsing. Strings like `3 weeks ago`, `last sunday`, or ' +
+    '`2 weeks from now` can be used.',
 );
 
 const DATE_FILTER_POPOVER_STYLE = { width: '250px' };
@@ -208,7 +207,7 @@ class DateFilterControl extends React.Component {
       untilViewMode: 'days',
     };
 
-    const value = props.value;
+    const { value } = props;
     if (value.indexOf(SEPARATOR) >= 0) {
       this.state = { ...this.state, ...getStateFromSeparator(value) };
     } else if (COMMON_TIME_FRAMES.indexOf(value) >= 0) {
@@ -239,11 +238,13 @@ class DateFilterControl extends React.Component {
   componentWillUnmount() {
     document.removeEventListener('click', this.handleClick);
   }
+
   onEnter(event) {
     if (event.key === 'Enter') {
       this.close();
     }
   }
+
   setCustomRange(key, value) {
     const updatedState = { ...this.state, [key]: value };
     const combinedValue = [
@@ -253,6 +254,7 @@ class DateFilterControl extends React.Component {
     ].join(' ');
     this.setState(getStateFromCustomRange(combinedValue));
   }
+
   setCustomStartEnd(key, value) {
     const closeCalendar =
       (key === 'since' && this.state.sinceViewMode === 'days') ||
@@ -266,9 +268,11 @@ class DateFilterControl extends React.Component {
       untilViewMode: closeCalendar ? 'days' : this.state.untilViewMode,
     });
   }
+
   setTypeCustomRange() {
     this.setState({ type: TYPES.CUSTOM_RANGE });
   }
+
   setTypeCustomStartEnd() {
     this.setState({ type: TYPES.CUSTOM_START_END });
   }
@@ -283,7 +287,7 @@ class DateFilterControl extends React.Component {
   }
 
   handleClick(e) {
-    const target = e.target;
+    const { target } = e;
     // switch to `TYPES.CUSTOM_START_END` when the calendar is clicked
     if (this.startEndSectionRef && this.startEndSectionRef.contains(target)) {
       this.setTypeCustomStartEnd();
@@ -326,18 +330,21 @@ class DateFilterControl extends React.Component {
     this.refs.trigger.hide();
     this.setState({ showSinceCalendar: false, showUntilCalendar: false });
   }
+
   isValidSince(date) {
     return (
       !isValidMoment(this.state.until) ||
       date <= moment(this.state.until, MOMENT_FORMAT)
     );
   }
+
   isValidUntil(date) {
     return (
       !isValidMoment(this.state.since) ||
       date >= moment(this.state.since, MOMENT_FORMAT)
     );
   }
+
   toggleCalendar(key) {
     const nextState = {};
     if (key === 'showSinceCalendar') {
@@ -353,6 +360,7 @@ class DateFilterControl extends React.Component {
     }
     this.setState(nextState);
   }
+
   renderInput(props, key) {
     return (
       <FormGroup>
@@ -365,7 +373,7 @@ class DateFilterControl extends React.Component {
             onClick={() => {}}
           />
           <InputGroup.Button onClick={() => this.toggleCalendar(key)}>
-            <Button>
+            <Button theme={this.props.theme}>
               <i className="fa fa-calendar" />
             </Button>
           </InputGroup.Button>
@@ -373,6 +381,7 @@ class DateFilterControl extends React.Component {
       </FormGroup>
     );
   }
+
   renderPopover() {
     const grainOptions = TIME_GRAIN_OPTIONS.map(grain => (
       <MenuItem
@@ -391,7 +400,7 @@ class DateFilterControl extends React.Component {
       const timeRange = buildTimeRangeString(nextState.since, nextState.until);
 
       return (
-        <Styles theme={this.props.theme}>
+        <Styles theme={this.props.theme} key={timeFrame}>
           <OverlayTrigger
             key={timeFrame}
             placement="right"
@@ -563,10 +572,11 @@ class DateFilterControl extends React.Component {
           </Tabs>
           <div className="clearfix">
             <Button
-              bsSize="small"
+              buttonSize="small"
               className="float-right ok"
-              bsStyle="primary"
+              buttonStyle="primary"
               onClick={this.close}
+              theme={this.props.theme}
             >
               Ok
             </Button>
@@ -575,6 +585,7 @@ class DateFilterControl extends React.Component {
       </Popover>
     );
   }
+
   render() {
     const timeRange = this.props.value || defaultProps.value;
     return (
@@ -590,7 +601,7 @@ class DateFilterControl extends React.Component {
           overlay={this.renderPopover()}
           onClick={this.handleClickTrigger}
         >
-          <Label name="popover-trigger" style={{ cursor: 'pointer' }}>
+          <Label name="popover-trigger" className="pointer">
             {formatTimeRange(timeRange, this.props.endpoints)}
           </Label>
         </OverlayTrigger>

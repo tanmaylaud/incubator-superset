@@ -18,17 +18,16 @@
  */
 /* eslint camelcase: 0 */
 import { ActionCreators as UndoActionCreators } from 'redux-undo';
-import { t } from '@superset-ui/translation';
-import { SupersetClient } from '@superset-ui/connection';
+import { t, SupersetClient } from '@superset-ui/core';
 
 import { addChart, removeChart, refreshChart } from '../../chart/chartAction';
 import { chart as initChart } from '../../chart/chartReducer';
-import { fetchDatasourceMetadata } from '../../dashboard/actions/datasources';
+import { fetchDatasourceMetadata } from './datasources';
 import {
   addFilter,
   removeFilter,
   updateDirectPathToFilter,
-} from '../../dashboard/actions/dashboardFilters';
+} from './dashboardFilters';
 import { applyDefaultFormData } from '../../explore/store';
 import getClientErrorObject from '../../utils/getClientErrorObject';
 import { SAVE_TYPE_OVERWRITE } from '../util/constants';
@@ -37,7 +36,7 @@ import {
   addWarningToast,
   addDangerToast,
 } from '../../messageToasts/actions';
-import { UPDATE_COMPONENTS_PARENTS_LIST } from '../actions/dashboardLayout';
+import { UPDATE_COMPONENTS_PARENTS_LIST } from './dashboardLayout';
 import serializeActiveFilterValues from '../util/serializeActiveFilterValues';
 import serializeFilterScopes from '../util/serializeFilterScopes';
 import { getActiveFilters } from '../util/activeDashboardFilters';
@@ -253,8 +252,8 @@ export function fetchCharts(
 }
 
 export const SHOW_BUILDER_PANE = 'SHOW_BUILDER_PANE';
-export function showBuilderPane(builderPaneType) {
-  return { type: SHOW_BUILDER_PANE, builderPaneType };
+export function showBuilderPane() {
+  return { type: SHOW_BUILDER_PANE };
 }
 
 export function addSliceToDashboard(id, component) {
@@ -319,6 +318,14 @@ export function setColorSchemeAndUnsavedChanges(colorScheme) {
 export const SET_DIRECT_PATH = 'SET_DIRECT_PATH';
 export function setDirectPathToChild(path) {
   return { type: SET_DIRECT_PATH, path };
+}
+
+export const SET_MOUNTED_TAB = 'SET_MOUNTED_TAB';
+/**
+ * Set if tab switch animation is in progress
+ */
+export function setMountedTab(mountedTab) {
+  return { type: SET_MOUNTED_TAB, mountedTab };
 }
 
 export const SET_FOCUSED_FILTER_FIELD = 'SET_FOCUSED_FILTER_FIELD';

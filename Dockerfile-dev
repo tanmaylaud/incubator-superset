@@ -20,12 +20,13 @@
 ######################################################################
 FROM preset/superset:dev
 
-COPY ./requirements* ./docker/requirements* /app/
+COPY ./requirements/*.txt ./docker/requirements-*.txt /app/requirements/
+COPY ./setup.py ./MANIFEST.in /app/
 
 USER root
+# Cache everything for dev purposes...
 RUN cd /app \
     && pip install -e . \
-    && pip install --no-cache -r requirements.txt -r requirements-dev.txt \
-    && pip install --no-cache -r requirements-extra.txt \
-    && pip install --no-cache -r requirements-local.txt || true
+    && pip install -r requirements/docker.txt \
+    && pip install -r requirements/requirements-local.txt || true
 USER superset

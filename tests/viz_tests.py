@@ -16,7 +16,7 @@
 # under the License.
 # isort:skip_file
 import uuid
-from datetime import datetime
+from datetime import date, datetime, timezone
 import logging
 from math import nan
 from unittest.mock import Mock, patch
@@ -24,12 +24,13 @@ from typing import Any, Dict, List, Set
 
 import numpy as np
 import pandas as pd
+import pytest
 
 import tests.test_app
 import superset.viz as viz
 from superset import app
 from superset.constants import NULL_STRING
-from superset.exceptions import SpatialException
+from superset.exceptions import QueryObjectValidationError, SpatialException
 from superset.utils.core import DTTM_ALIAS
 
 from .base_tests import SupersetTestCase
@@ -1266,6 +1267,26 @@ class TestTimeSeriesViz(SupersetTestCase):
             [1.0, 1.5, 2.0, 2.5],
         )
 
+    def test_apply_rolling_without_data(self):
+        datasource = self.get_datasource_mock()
+        df = pd.DataFrame(
+            index=pd.to_datetime(
+                ["2019-01-01", "2019-01-02", "2019-01-05", "2019-01-07"]
+            ),
+            data={"y": [1.0, 2.0, 3.0, 4.0]},
+        )
+        test_viz = viz.BigNumberViz(
+            datasource,
+            {
+                "metrics": ["y"],
+                "rolling_type": "cumsum",
+                "rolling_periods": 4,
+                "min_periods": 4,
+            },
+        )
+        with pytest.raises(QueryObjectValidationError):
+            test_viz.apply_rolling(df)
+
 
 class TestBigNumberViz(SupersetTestCase):
     def test_get_data(self):
@@ -1331,6 +1352,38 @@ class TestPivotTableViz(SupersetTestCase):
             viz.PivotTableViz.get_aggfunc("strcol", self.df, {"pandas_aggfunc": "min"})
             == "min"
         )
+
+    def test_format_datetime_from_pd_timestamp(self):
+        tstamp = pd.Timestamp(datetime(2020, 9, 3, tzinfo=timezone.utc))
+        assert (
+            viz.PivotTableViz._format_datetime(tstamp) == "__timestamp:1599091200000.0"
+        )
+
+    def test_format_datetime_from_datetime(self):
+        tstamp = datetime(2020, 9, 3, tzinfo=timezone.utc)
+        assert (
+            viz.PivotTableViz._format_datetime(tstamp) == "__timestamp:1599091200000.0"
+        )
+
+    def test_format_datetime_from_date(self):
+        tstamp = date(2020, 9, 3)
+        assert (
+            viz.PivotTableViz._format_datetime(tstamp) == "__timestamp:1599091200000.0"
+        )
+
+    def test_format_datetime_from_string(self):
+        tstamp = "2020-09-03T00:00:00"
+        assert (
+            viz.PivotTableViz._format_datetime(tstamp) == "__timestamp:1599091200000.0"
+        )
+
+    def test_format_datetime_from_invalid_string(self):
+        tstamp = "abracadabra"
+        assert viz.PivotTableViz._format_datetime(tstamp) == tstamp
+
+    def test_format_datetime_from_int(self):
+        assert viz.PivotTableViz._format_datetime(123) == 123
+        assert viz.PivotTableViz._format_datetime(123.0) == 123.0
 
 
 class TestDistributionPieViz(SupersetTestCase):

@@ -19,10 +19,10 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { ParentSize } from '@vx/responsive';
-import styled from '@superset-ui/style';
+import { styled } from '@superset-ui/core';
 import { chartPropShape } from '../../dashboard/util/propShapes';
 import ChartContainer from '../../chart/ChartContainer';
-import ExploreChartHeader from './ExploreChartHeader';
+import ConnectedExploreChartHeader from './ExploreChartHeader';
 
 const propTypes = {
   actions: PropTypes.object.isRequired,
@@ -51,13 +51,12 @@ const propTypes = {
 
 const Styles = styled.div`
   background-color: ${({ theme }) => theme.colors.grayscale.light5};
-  padding: ${({ theme }) => theme.gridUnit * 4}px;
   height: 100%;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   align-content: stretch;
-  div:last-of-type {
+  & > div:last-of-type {
     flex-basis: 100%;
   }
 `;
@@ -111,7 +110,7 @@ class ExploreChartPanel extends React.PureComponent {
     }
 
     const header = (
-      <ExploreChartHeader
+      <ConnectedExploreChartHeader
         actions={this.props.actions}
         addHistory={this.props.addHistory}
         can_overwrite={this.props.can_overwrite}
@@ -128,9 +127,9 @@ class ExploreChartPanel extends React.PureComponent {
     );
 
     return (
-      <Styles className="chart-container">
-        <div>{header}</div>
-        <div>{this.renderChart()}</div>
+      <Styles className="panel panel-default chart-container">
+        <div className="panel-heading">{header}</div>
+        <div className="panel-body">{this.renderChart()}</div>
       </Styles>
     );
   }

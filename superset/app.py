@@ -36,6 +36,7 @@ from superset.extensions import (
     db,
     feature_flag_manager,
     jinja_context_manager,
+    machine_auth_provider_factory,
     manifest_processor,
     migrate,
     results_backend_manager,
@@ -124,74 +125,83 @@ class SupersetAppInitializer:
         #
         # pylint: disable=too-many-locals
         # pylint: disable=too-many-statements
+        from superset.cachekeys.api import CacheRestApi
+        from superset.charts.api import ChartRestApi
         from superset.connectors.druid.views import (
-            DruidDatasourceModelView,
-            DruidClusterModelView,
-            DruidMetricInlineView,
-            DruidColumnInlineView,
             Druid,
+            DruidClusterModelView,
+            DruidColumnInlineView,
+            DruidDatasourceModelView,
+            DruidMetricInlineView,
         )
+        from superset.connectors.sqla.views import (
+            RowLevelSecurityFiltersModelView,
+            SqlMetricInlineView,
+            TableColumnInlineView,
+            TableModelView,
+        )
+        from superset.dashboards.api import DashboardRestApi
+        from superset.databases.api import DatabaseRestApi
         from superset.datasets.api import DatasetRestApi
         from superset.queries.api import QueryRestApi
-        from superset.connectors.sqla.views import (
-            TableColumnInlineView,
-            SqlMetricInlineView,
-            TableModelView,
-            RowLevelSecurityFiltersModelView,
+        from superset.queries.saved_queries.api import SavedQueryRestApi
+        from superset.views.access_requests import AccessRequestsModelView
+        from superset.views.alerts import (
+            AlertLogModelView,
+            AlertModelView,
+            AlertObservationModelView,
+            SQLObserverInlineView,
+            ValidatorInlineView,
         )
         from superset.views.annotations import (
             AnnotationLayerModelView,
             AnnotationModelView,
         )
         from superset.views.api import Api
+        from superset.views.chart.views import SliceAsync, SliceModelView
         from superset.views.core import Superset
-        from superset.views.redirects import R
-        from superset.views.key_value import KV
-        from superset.views.access_requests import AccessRequestsModelView
-        from superset.views.css_templates import CssTemplateAsyncModelView
-        from superset.views.css_templates import CssTemplateModelView
-        from superset.charts.api import ChartRestApi
-        from superset.views.chart.views import SliceModelView, SliceAsync
-        from superset.dashboards.api import DashboardRestApi
+        from superset.views.css_templates import (
+            CssTemplateAsyncModelView,
+            CssTemplateModelView,
+        )
         from superset.views.dashboard.views import (
-            DashboardModelView,
             Dashboard,
+            DashboardModelView,
             DashboardModelViewAsync,
         )
-        from superset.databases.api import DatabaseRestApi
         from superset.views.database.views import (
-            DatabaseView,
             CsvToDatabaseView,
+            DatabaseView,
             ExcelToDatabaseView,
         )
         from superset.views.datasource import Datasource
+        from superset.views.key_value import KV
         from superset.views.log.api import LogRestApi
         from superset.views.log.views import LogModelView
+        from superset.views.redirects import R
         from superset.views.schedules import (
             DashboardEmailScheduleView,
             SliceEmailScheduleView,
         )
-        from superset.views.alerts import (
-            AlertModelView,
-            AlertLogModelView,
-        )
         from superset.views.sql_lab import (
-            SavedQueryViewApi,
             SavedQueryView,
-            TabStateView,
-            TableSchemaView,
+            SavedQueryViewApi,
             SqlLab,
+            TableSchemaView,
+            TabStateView,
         )
         from superset.views.tags import TagView
 
         #
         # Setup API views
         #
+        appbuilder.add_api(CacheRestApi)
         appbuilder.add_api(ChartRestApi)
         appbuilder.add_api(DashboardRestApi)
         appbuilder.add_api(DatabaseRestApi)
         appbuilder.add_api(DatasetRestApi)
         appbuilder.add_api(QueryRestApi)
+        appbuilder.add_api(SavedQueryRestApi)
         #
         # Setup regular views
         #
@@ -209,20 +219,20 @@ class SupersetAppInitializer:
             "Databases",
             label=__("Databases"),
             icon="fa-database",
-            category="Sources",
-            category_label=__("Sources"),
+            category="Data",
+            category_label=__("Data"),
             category_icon="fa-database",
         )
         appbuilder.add_link(
-            "Tables",
-            label=__("Tables"),
+            "Datasets",
+            label=__("Datasets"),
             href="/tablemodelview/list/?_flt_1_is_sqllab_view=y",
             icon="fa-table",
-            category="Sources",
-            category_label=__("Sources"),
+            category="Data",
+            category_label=__("Data"),
             category_icon="fa-table",
         )
-        appbuilder.add_separator("Sources")
+        appbuilder.add_separator("Data")
         appbuilder.add_view(
             SliceModelView,
             "Charts",
@@ -332,8 +342,8 @@ class SupersetAppInitializer:
                 label=__("Upload a CSV"),
                 href="/csvtodatabaseview/form",
                 icon="fa-upload",
-                category="Sources",
-                category_label=__("Sources"),
+                category="Data",
+                category_label=__("Data"),
                 category_icon="fa-wrench",
             )
         try:
@@ -347,8 +357,8 @@ class SupersetAppInitializer:
                     label=__("Upload Excel"),
                     href="/exceltodatabaseview/form",
                     icon="fa-upload",
-                    category="Sources",
-                    category_label=__("Sources"),
+                    category="Data",
+                    category_label=__("Data"),
                     category_icon="fa-wrench",
                 )
         except ImportError:
@@ -399,6 +409,9 @@ class SupersetAppInitializer:
                 category_label=__("Manage"),
                 icon="fa-exclamation-triangle",
             )
+            appbuilder.add_view_no_menu(SQLObserverInlineView)
+            appbuilder.add_view_no_menu(ValidatorInlineView)
+            appbuilder.add_view_no_menu(AlertObservationModelView)
             appbuilder.add_view_no_menu(AlertLogModelView)
 
         #
@@ -418,13 +431,13 @@ class SupersetAppInitializer:
         # Conditionally setup Druid Views
         #
         if self.config["DRUID_IS_ACTIVE"]:
-            appbuilder.add_separator("Sources")
+            appbuilder.add_separator("Data")
             appbuilder.add_view(
                 DruidDatasourceModelView,
                 "Druid Datasources",
                 label=__("Druid Datasources"),
-                category="Sources",
-                category_label=__("Sources"),
+                category="Data",
+                category_label=__("Data"),
                 icon="fa-cube",
             )
             appbuilder.add_view(
@@ -432,8 +445,8 @@ class SupersetAppInitializer:
                 name="Druid Clusters",
                 label=__("Druid Clusters"),
                 icon="fa-cubes",
-                category="Sources",
-                category_label=__("Sources"),
+                category="Data",
+                category_label=__("Data"),
                 category_icon="fa-database",
             )
             appbuilder.add_view_no_menu(DruidMetricInlineView)
@@ -445,8 +458,8 @@ class SupersetAppInitializer:
                     "Scan New Datasources",
                     label=__("Scan New Datasources"),
                     href="/druid/scan_new_datasources/",
-                    category="Sources",
-                    category_label=__("Sources"),
+                    category="Data",
+                    category_label=__("Data"),
                     category_icon="fa-database",
                     icon="fa-refresh",
                 )
@@ -454,12 +467,12 @@ class SupersetAppInitializer:
                     "Refresh Druid Metadata",
                     label=__("Refresh Druid Metadata"),
                     href="/druid/refresh_datasources/",
-                    category="Sources",
-                    category_label=__("Sources"),
+                    category="Data",
+                    category_label=__("Data"),
                     category_icon="fa-database",
                     icon="fa-cog",
                 )
-            appbuilder.add_separator("Sources")
+            appbuilder.add_separator("Data")
 
     def init_app_in_ctx(self) -> None:
         """
@@ -469,6 +482,7 @@ class SupersetAppInitializer:
         self.configure_fab()
         self.configure_url_map_converters()
         self.configure_data_sources()
+        self.configure_auth_provider()
 
         # Hook that provides administrators a handle on the Flask APP
         # after initialization
@@ -499,6 +513,9 @@ class SupersetAppInitializer:
             self.init_app_in_ctx()
 
         self.post_init()
+
+    def configure_auth_provider(self) -> None:
+        machine_auth_provider_factory.init_app(self.flask_app)
 
     def setup_event_logger(self) -> None:
         _event_logger["event_logger"] = get_event_logger_from_cfg_value(
@@ -541,8 +558,10 @@ class SupersetAppInitializer:
         # Doing local imports here as model importing causes a reference to
         # app.config to be invoked and we need the current_app to have been setup
         #
-        from superset.utils.url_map_converters import RegexConverter
-        from superset.utils.url_map_converters import ObjectTypeConverter
+        from superset.utils.url_map_converters import (
+            ObjectTypeConverter,
+            RegexConverter,
+        )
 
         self.flask_app.url_map.converters["regex"] = RegexConverter
         self.flask_app.url_map.converters["object_type"] = ObjectTypeConverter

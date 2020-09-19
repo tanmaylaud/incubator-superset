@@ -16,14 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import { WORLD_HEALTH_DASHBOARD } from './dashboard.helper';
+import { WORLD_HEALTH_DASHBOARD, drag } from './dashboard.helper';
 
 describe('Dashboard edit mode', () => {
   beforeEach(() => {
     cy.server();
     cy.login();
     cy.visit(WORLD_HEALTH_DASHBOARD);
-    cy.get('.dashboard-header').contains('Edit dashboard').click();
+    cy.get('.dashboard-header [data-test=pencil]').click();
   });
 
   it('remove, and add chart flow', () => {
@@ -38,38 +38,29 @@ describe('Dashboard edit mode', () => {
         cy.get('.grid-container .box_plot').should('not.exist');
       });
 
-    // open charts list
-    cy.get('.component-layer').contains('Your charts & filters').click();
+    cy.get('.tabs-components .nav-tabs li a').contains('Charts').click();
 
     // find box plot is available from list
-    cy.get('.slices-layer').find('.chart-card-container').contains('Box plot');
+    cy.get('.tabs-components')
+      .find('.chart-card-container')
+      .contains('Box plot');
 
-    // drag-n-drop
-    const dataTransfer = { data: {} };
-    cy.get('.dragdroppable')
-      .contains('Box plot')
-      .trigger('mousedown', { which: 1 })
-      .trigger('dragstart', { dataTransfer })
-      .trigger('drag', {});
-    cy.get('.grid-content div.grid-row.background--transparent')
-      .last()
-      .trigger('dragover', { dataTransfer })
-      .trigger('drop', { dataTransfer })
-      .trigger('dragend', { dataTransfer })
-      .trigger('mouseup', { which: 1 });
+    drag('.chart-card', 'Box plot').to(
+      '.grid-row.background--transparent:last',
+    );
 
     // add back to dashboard
     cy.get('.grid-container .box_plot').should('be.exist');
 
     // should show Save changes button
-    cy.get('.dashboard-header .button-container').contains('Save changes');
+    cy.get('.dashboard-header .button-container').contains('Save');
 
     // undo 2 steps
     cy.get('.dashboard-header .undo-action').click().click();
 
     // no changes, can switch to view mode
     cy.get('.dashboard-header .button-container')
-      .contains('Switch to view mode')
+      .contains('Discard Changes')
       .click();
   });
 });

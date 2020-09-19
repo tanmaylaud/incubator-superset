@@ -25,10 +25,11 @@ from flask_appbuilder.fieldwidgets import Select2Widget
 from flask_appbuilder.models.sqla.interface import SQLAInterface
 from flask_appbuilder.security.decorators import has_access
 from flask_babel import lazy_gettext as _
+from wtforms import StringField
 from wtforms.ext.sqlalchemy.fields import QuerySelectField
 
 from superset import db, security_manager
-from superset.connectors.base.views import DatasourceModelView
+from superset.connectors.base.views import BS3TextFieldROWidget, DatasourceModelView
 from superset.connectors.connector_registry import ConnectorRegistry
 from superset.connectors.druid import models
 from superset.constants import RouteMethod
@@ -98,7 +99,7 @@ class DruidColumnInlineView(CompactCRUDMixin, SupersetModelView):
     add_form_extra_fields = {
         "datasource": QuerySelectField(
             "Datasource",
-            query_factory=lambda: db.session().query(models.DruidDatasource),
+            query_factory=lambda: db.session.query(models.DruidDatasource),
             allow_blank=True,
             widget=Select2Widget(extra_classes="readonly"),
         )
@@ -179,7 +180,7 @@ class DruidMetricInlineView(CompactCRUDMixin, SupersetModelView):
     add_form_extra_fields = {
         "datasource": QuerySelectField(
             "Datasource",
-            query_factory=lambda: db.session().query(models.DruidDatasource),
+            query_factory=lambda: db.session.query(models.DruidDatasource),
             allow_blank=True,
             widget=Select2Widget(extra_classes="readonly"),
         )
@@ -333,6 +334,16 @@ class DruidDatasourceModelView(DatasourceModelView, DeleteMixin, YamlExportMixin
         "changed_by_": _("Changed By"),
         "modified": _("Modified"),
     }
+    edit_form_extra_fields = {
+        "cluster": QuerySelectField(
+            "Cluster",
+            query_factory=lambda: db.session.query(models.DruidCluster),
+            widget=Select2Widget(extra_classes="readonly"),
+        ),
+        "datasource_name": StringField(
+            "Datasource Name", widget=BS3TextFieldROWidget()
+        ),
+    }
 
     def pre_add(self, item: "DruidDatasourceModelView") -> None:
         with db.session.no_autoflush:
@@ -365,10 +376,11 @@ class Druid(BaseSupersetView):
         self, refresh_all: bool = True
     ) -> FlaskResponse:
         """endpoint that refreshes druid datasources metadata"""
+        session = db.session()
         DruidCluster = ConnectorRegistry.sources[  # pylint: disable=invalid-name
             "druid"
         ].cluster_class
-        for cluster in db.session.query(DruidCluster).all():
+        for cluster in session.query(DruidCluster).all():
             cluster_name = cluster.cluster_name
             valid_cluster = True
             try:
@@ -390,7 +402,7 @@ class Druid(BaseSupersetView):
                     ),
                     "info",
                 )
-        db.session.commit()
+        session.commit()
         return redirect("/druiddatasourcemodelview/list/")
 
     @has_access

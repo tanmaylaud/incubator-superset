@@ -18,9 +18,10 @@
  */
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Label, Popover, OverlayTrigger } from 'react-bootstrap';
+import { Popover, OverlayTrigger } from 'react-bootstrap';
 import { decimal2sexagesimal } from 'geolib';
 
+import Label from 'src/components/Label';
 import FormLabel from 'src/components/FormLabel';
 import TextControl from './TextControl';
 import ControlHeader from '../ControlHeader';
@@ -59,12 +60,14 @@ export default class ViewportControl extends React.Component {
     super(props);
     this.onChange = this.onChange.bind(this);
   }
+
   onChange(ctrl, value) {
     this.props.onChange({
       ...this.props.value,
       [ctrl]: value,
     });
   }
+
   renderTextControl(ctrl) {
     return (
       <div key={ctrl}>
@@ -77,6 +80,7 @@ export default class ViewportControl extends React.Component {
       </div>
     );
   }
+
   renderPopover() {
     return (
       <Popover id={`filter-popover-${this.props.name}`} title="Viewport">
@@ -84,6 +88,7 @@ export default class ViewportControl extends React.Component {
       </Popover>
     );
   }
+
   renderLabel() {
     if (this.props.value.longitude && this.props.value.latitude) {
       return `${decimal2sexagesimal(
@@ -92,6 +97,7 @@ export default class ViewportControl extends React.Component {
     }
     return 'N/A';
   }
+
   render() {
     return (
       <div>
@@ -104,7 +110,7 @@ export default class ViewportControl extends React.Component {
           placement="right"
           overlay={this.renderPopover()}
         >
-          <Label style={{ cursor: 'pointer' }}>{this.renderLabel()}</Label>
+          <Label className="pointer">{this.renderLabel()}</Label>
         </OverlayTrigger>
       </div>
     );

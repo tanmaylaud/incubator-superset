@@ -19,9 +19,10 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { isFunction } from 'lodash';
-import { CreatableSelect } from 'src/components/Select';
+import { Select } from 'src/components/Select';
 import ControlHeader from '../ControlHeader';
 import TooltipWrapper from '../../../components/TooltipWrapper';
+import './ColorSchemeControl.less';
 
 const propTypes = {
   description: PropTypes.string,
@@ -29,6 +30,7 @@ const propTypes = {
   name: PropTypes.string.isRequired,
   onChange: PropTypes.func,
   value: PropTypes.string,
+  clearable: PropTypes.bool,
   default: PropTypes.string,
   choices: PropTypes.oneOfType([
     PropTypes.arrayOf(PropTypes.array),
@@ -41,16 +43,13 @@ const propTypes = {
 const defaultProps = {
   choices: [],
   schemes: {},
+  clearable: false,
   onChange: () => {},
 };
 
 export default class ColorSchemeControl extends React.PureComponent {
   constructor(props) {
     super(props);
-    this.state = {
-      scheme: this.props.value,
-    };
-
     this.onChange = this.onChange.bind(this);
     this.renderOption = this.renderOption.bind(this);
   }
@@ -58,13 +57,11 @@ export default class ColorSchemeControl extends React.PureComponent {
   onChange(option) {
     const optionValue = option ? option.value : null;
     this.props.onChange(optionValue);
-    this.setState({ scheme: optionValue });
   }
 
   renderOption(key) {
-    const { isLinear, schemes } = this.props;
-    const schemeLookup = isFunction(schemes) ? schemes() : schemes;
-    const currentScheme = schemeLookup[key.value || defaultProps.value];
+    const { isLinear } = this.props;
+    const currentScheme = this.schemes[key.value];
 
     // For categorical scheme, display all the colors
     // For sequential scheme, show 10 or interpolate to 10.
@@ -97,12 +94,16 @@ export default class ColorSchemeControl extends React.PureComponent {
   }
 
   render() {
-    const { choices } = this.props;
-    const options = (isFunction(choices) ? choices() : choices).map(choice => ({
-      value: choice[0],
-      label: choice[1],
-    }));
-
+    const { schemes, choices } = this.props;
+    // save parsed schemes for later
+    this.schemes = isFunction(schemes) ? schemes() : schemes;
+    const options = (isFunction(choices) ? choices() : choices).map(
+      ([value, label]) => ({
+        value,
+        // use scheme label if available
+        label: this.schemes[value]?.label || label,
+      }),
+    );
     const selectProps = {
       multi: false,
       name: `select-${this.props.name}`,
@@ -111,7 +112,7 @@ export default class ColorSchemeControl extends React.PureComponent {
       options,
       value: this.props.value,
       autosize: false,
-      clearable: false,
+      clearable: this.props.clearable,
       onChange: this.onChange,
       optionRenderer: this.renderOption,
       valueRenderer: this.renderOption,
@@ -119,7 +120,7 @@ export default class ColorSchemeControl extends React.PureComponent {
     return (
       <div>
         <ControlHeader {...this.props} />
-        <CreatableSelect {...selectProps} />
+        <Select {...selectProps} />
       </div>
     );
   }

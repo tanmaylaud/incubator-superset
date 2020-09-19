@@ -18,20 +18,15 @@
  */
 import React from 'react';
 import PropTypes from 'prop-types';
-import {
-  Row,
-  Col,
-  Button,
-  Label,
-  OverlayTrigger,
-  Popover,
-} from 'react-bootstrap';
-import { t } from '@superset-ui/translation';
+import { Row, Col, OverlayTrigger, Popover } from 'react-bootstrap';
+import Button from 'src/components/Button';
+import { t } from '@superset-ui/core';
 
+import Label from 'src/components/Label';
+import PopoverSection from 'src/components/PopoverSection';
+import Checkbox from 'src/components/Checkbox';
 import ControlHeader from '../ControlHeader';
 import SelectControl from './SelectControl';
-import PopoverSection from '../../../components/PopoverSection';
-import Checkbox from '../../../components/Checkbox';
 
 const spatialTypes = {
   latlong: 'latlong',
@@ -75,11 +70,13 @@ export default class SpatialControl extends React.Component {
     this.onChange = this.onChange.bind(this);
     this.renderReverseCheckbox = this.renderReverseCheckbox.bind(this);
   }
+
   componentDidMount() {
     this.onChange();
   }
+
   onChange() {
-    const type = this.state.type;
+    const { type } = this.state;
     const value = { type };
     const errors = [];
     const errMsg = t('Invalid lat/long configuration.');
@@ -106,31 +103,38 @@ export default class SpatialControl extends React.Component {
     this.setState({ value, errors });
     this.props.onChange(value, errors);
   }
+
   setType(type) {
     this.setState({ type }, this.onChange);
   }
+
   close() {
     this.refs.trigger.hide();
   }
+
   toggleCheckbox() {
     this.setState(
       { reverseCheckbox: !this.state.reverseCheckbox },
       this.onChange,
     );
   }
+
   renderLabelContent() {
     if (this.state.errors.length > 0) {
       return 'N/A';
     }
     if (this.state.type === spatialTypes.latlong) {
       return `${this.state.lonCol} | ${this.state.latCol}`;
-    } else if (this.state.type === spatialTypes.delimited) {
+    }
+    if (this.state.type === spatialTypes.delimited) {
       return `${this.state.lonlatCol}`;
-    } else if (this.state.type === spatialTypes.geohash) {
+    }
+    if (this.state.type === spatialTypes.geohash) {
       return `${this.state.geohashCol}`;
     }
     return null;
   }
+
   renderSelect(name, type) {
     return (
       <SelectControl
@@ -147,6 +151,7 @@ export default class SpatialControl extends React.Component {
       />
     );
   }
+
   renderReverseCheckbox() {
     return (
       <span>
@@ -158,6 +163,7 @@ export default class SpatialControl extends React.Component {
       </span>
     );
   }
+
   renderPopover() {
     return (
       <Popover id="filter-popover">
@@ -210,9 +216,9 @@ export default class SpatialControl extends React.Component {
           </PopoverSection>
           <div className="clearfix">
             <Button
-              bsSize="small"
+              buttonSize="small"
               className="float-left ok"
-              bsStyle="primary"
+              buttonStyle="primary"
               onClick={this.close.bind(this)}
             >
               Ok
@@ -222,6 +228,7 @@ export default class SpatialControl extends React.Component {
       </Popover>
     );
   }
+
   render() {
     return (
       <div>
@@ -235,9 +242,7 @@ export default class SpatialControl extends React.Component {
           placement="right"
           overlay={this.renderPopover()}
         >
-          <Label style={{ cursor: 'pointer' }}>
-            {this.renderLabelContent()}
-          </Label>
+          <Label className="pointer">{this.renderLabelContent()}</Label>
         </OverlayTrigger>
       </div>
     );

@@ -17,6 +17,7 @@
 import json
 import logging
 from copy import copy
+from json.decoder import JSONDecodeError
 from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
 from urllib import parse
 
@@ -37,7 +38,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.engine.base import Connection
-from sqlalchemy.orm import relationship, subqueryload
+from sqlalchemy.orm import relationship, sessionmaker, subqueryload
 from sqlalchemy.orm.mapper import Mapper
 
 from superset import app, ConnectorRegistry, db, is_feature_enabled, security_manager
@@ -62,17 +63,19 @@ config = app.config
 logger = logging.getLogger(__name__)
 
 
-def copy_dashboard(  # pylint: disable=unused-argument
-    mapper: Mapper, connection: Connection, target: "Dashboard"
+def copy_dashboard(
+    _mapper: Mapper, connection: Connection, target: "Dashboard"
 ) -> None:
     dashboard_id = config["DASHBOARD_TEMPLATE_ID"]
     if dashboard_id is None:
         return
 
-    new_user = db.session.query(User).filter_by(id=target.id).first()
+    session_class = sessionmaker(autoflush=False)
+    session = session_class(bind=connection)
+    new_user = session.query(User).filter_by(id=target.id).first()
 
     # copy template dashboard to user
-    template = db.session.query(Dashboard).filter_by(id=int(dashboard_id)).first()
+    template = session.query(Dashboard).filter_by(id=int(dashboard_id)).first()
     dashboard = Dashboard(
         dashboard_title=template.dashboard_title,
         position_json=template.position_json,
@@ -82,15 +85,15 @@ def copy_dashboard(  # pylint: disable=unused-argument
         slices=template.slices,
         owners=[new_user],
     )
-    db.session.add(dashboard)
-    db.session.commit()
+    session.add(dashboard)
+    session.commit()
 
     # set dashboard as the welcome dashboard
     extra_attributes = UserAttribute(
         user_id=target.id, welcome_dashboard_id=dashboard.id
     )
-    db.session.add(extra_attributes)
-    db.session.commit()
+    session.add(extra_attributes)
+    session.commit()
 
 
 sqla.event.listen(User, "after_insert", copy_dashboard)
@@ -152,6 +155,7 @@ class Dashboard(  # pylint: disable=too-many-instance-attributes
 
     @property
     def url(self) -> str:
+        url = f"/superset/dashboard/{self.slug or self.id}/"
         if self.json_metadata:
             # add default_filters to the preselect_filters of dashboard
             json_metadata = json.loads(self.json_metadata)
@@ -164,9 +168,14 @@ class Dashboard(  # pylint: disable=too-many-instance-attributes
                         return "/superset/dashboard/{}/?preselect_filters={}".format(
                             self.slug or self.id, filters
                         )
-                except Exception:  # pylint: disable=broad-except
-                    pass
-        return f"/superset/dashboard/{self.slug or self.id}/"
+                except (TypeError, JSONDecodeError) as exc:
+                    logger.error(
+                        "Unable to parse json for url: %r. Returning default url.",
+                        exc,
+                        exc_info=True,
+                    )
+                    return url
+        return url
 
     @property
     def datasources(self) -> Set[Optional["BaseDatasource"]]:
@@ -190,7 +199,7 @@ class Dashboard(  # pylint: disable=too-many-instance-attributes
     @property
     def digest(self) -> str:
         """
-            Returns a MD5 HEX digest that makes this dashboard unique
+        Returns a MD5 HEX digest that makes this dashboard unique
         """
         unique_string = f"{self.position_json}.{self.css}.{self.json_metadata}"
         return utils.md5_hex(unique_string)
@@ -198,8 +207,8 @@ class Dashboard(  # pylint: disable=too-many-instance-attributes
     @property
     def thumbnail_url(self) -> str:
         """
-            Returns a thumbnail URL with a HEX digest. We want to avoid browser cache
-            if the dashboard has changed
+        Returns a thumbnail URL with a HEX digest. We want to avoid browser cache
+        if the dashboard has changed
         """
         return f"/api/v1/dashboard/{self.id}/thumbnail/{self.digest}/"
 
@@ -251,18 +260,18 @@ class Dashboard(  # pylint: disable=too-many-instance-attributes
     ) -> int:
         """Imports the dashboard from the object to the database.
 
-         Once dashboard is imported, json_metadata field is extended and stores
-         remote_id and import_time. It helps to decide if the dashboard has to
-         be overridden or just copies over. Slices that belong to this
-         dashboard will be wired to existing tables. This function can be used
-         to import/export dashboards between multiple superset instances.
-         Audit metadata isn't copied over.
+        Once dashboard is imported, json_metadata field is extended and stores
+        remote_id and import_time. It helps to decide if the dashboard has to
+        be overridden or just copies over. Slices that belong to this
+        dashboard will be wired to existing tables. This function can be used
+        to import/export dashboards between multiple superset instances.
+        Audit metadata isn't copied over.
         """
 
         def alter_positions(
             dashboard: Dashboard, old_to_new_slc_id_dict: Dict[int, int]
         ) -> None:
-            """ Updates slice_ids in the position json.
+            """Updates slice_ids in the position json.
 
             Sample position_json data:
             {
@@ -306,6 +315,7 @@ class Dashboard(  # pylint: disable=too-many-instance-attributes
         logger.info(
             "Started import of the dashboard: %s", dashboard_to_import.to_json()
         )
+        session = db.session
         logger.info("Dashboard has %d slices", len(dashboard_to_import.slices))
         # copy slices object as Slice.import_slice will mutate the slice
         # and will remove the existing dashboard - slice association
@@ -322,7 +332,7 @@ class Dashboard(  # pylint: disable=too-many-instance-attributes
         i_params_dict = dashboard_to_import.params_dict
         remote_id_slice_map = {
             slc.params_dict["remote_id"]: slc
-            for slc in db.session.query(Slice).all()
+            for slc in session.query(Slice).all()
             if "remote_id" in slc.params_dict
         }
         for slc in slices:
@@ -373,7 +383,7 @@ class Dashboard(  # pylint: disable=too-many-instance-attributes
 
         # override the dashboard
         existing_dashboard = None
-        for dash in db.session.query(Dashboard).all():
+        for dash in session.query(Dashboard).all():
             if (
                 "remote_id" in dash.params_dict
                 and dash.params_dict["remote_id"] == dashboard_to_import.id
@@ -400,7 +410,7 @@ class Dashboard(  # pylint: disable=too-many-instance-attributes
             )
 
         new_slices = (
-            db.session.query(Slice)
+            session.query(Slice)
             .filter(Slice.id.in_(old_to_new_slc_id_dict.values()))
             .all()
         )
@@ -408,12 +418,12 @@ class Dashboard(  # pylint: disable=too-many-instance-attributes
         if existing_dashboard:
             existing_dashboard.override(dashboard_to_import)
             existing_dashboard.slices = new_slices
-            db.session.flush()
+            session.flush()
             return existing_dashboard.id
 
         dashboard_to_import.slices = new_slices
-        db.session.add(dashboard_to_import)
-        db.session.flush()
+        session.add(dashboard_to_import)
+        session.flush()
         return dashboard_to_import.id  # type: ignore
 
     @classmethod
@@ -455,7 +465,7 @@ class Dashboard(  # pylint: disable=too-many-instance-attributes
         eager_datasources = []
         for datasource_id, datasource_type in datasource_ids:
             eager_datasource = ConnectorRegistry.get_eager_datasource(
-                datasource_type, datasource_id
+                db.session, datasource_type, datasource_id
             )
             copied_datasource = eager_datasource.copy()
             copied_datasource.alter_params(
@@ -476,8 +486,8 @@ class Dashboard(  # pylint: disable=too-many-instance-attributes
         )
 
 
-def event_after_dashboard_changed(  # pylint: disable=unused-argument
-    mapper: Mapper, connection: Connection, target: Dashboard
+def event_after_dashboard_changed(
+    _mapper: Mapper, _connection: Connection, target: Dashboard
 ) -> None:
     url = get_url_path("Superset.dashboard", dashboard_id_or_slug=target.id)
     cache_dashboard_thumbnail.delay(url, target.digest, force=True)

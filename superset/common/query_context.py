@@ -22,14 +22,17 @@ from typing import Any, ClassVar, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
+from flask_babel import gettext as _
 
-from superset import app, cache, security_manager
+from superset import app, cache, db, security_manager
 from superset.common.query_object import QueryObject
 from superset.connectors.base.models import BaseDatasource
 from superset.connectors.connector_registry import ConnectorRegistry
+from superset.exceptions import QueryObjectValidationError
 from superset.stats_logger import BaseStatsLogger
 from superset.utils import core as utils
 from superset.utils.core import DTTM_ALIAS
+from superset.viz import set_and_log_cache
 
 config = app.config
 stats_logger: BaseStatsLogger = config["STATS_LOGGER"]
@@ -64,7 +67,7 @@ class QueryContext:
         result_format: Optional[utils.ChartDataResultFormat] = None,
     ) -> None:
         self.datasource = ConnectorRegistry.get_datasource(
-            str(datasource["type"]), int(datasource["id"])
+            str(datasource["type"]), int(datasource["id"]), db.session
         )
         self.queries = [QueryObject(**query_obj) for query_obj in queries]
         self.force = force
@@ -121,17 +124,13 @@ class QueryContext:
         }
 
     @staticmethod
-    def df_metrics_to_num(  # pylint: disable=no-self-use
-        df: pd.DataFrame, query_object: QueryObject
-    ) -> None:
+    def df_metrics_to_num(df: pd.DataFrame, query_object: QueryObject) -> None:
         """Converting metrics to numeric when pandas.read_sql cannot"""
         for col, dtype in df.dtypes.items():
             if dtype.type == np.object_ and col in query_object.metrics:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    def get_data(
-        self, df: pd.DataFrame,
-    ) -> Union[str, List[Dict[str, Any]]]:  # pylint: disable=no-self-use
+    def get_data(self, df: pd.DataFrame,) -> Union[str, List[Dict[str, Any]]]:
         if self.result_format == utils.ChartDataResultFormat.CSV:
             include_index = not isinstance(df.index, pd.RangeIndex)
             result = df.to_csv(index=include_index, **config["CSV_EXPORT"])
@@ -201,7 +200,7 @@ class QueryContext:
         )
         return cache_key
 
-    def get_df_payload(  # pylint: disable=too-many-locals,too-many-statements
+    def get_df_payload(  # pylint: disable=too-many-statements
         self, query_obj: QueryObject, **kwargs: Any
     ) -> Dict[str, Any]:
         """Handles caching around the df payload retrieval"""
@@ -234,6 +233,21 @@ class QueryContext:
 
         if query_obj and not is_loaded:
             try:
+                invalid_columns = [
+                    col
+                    for col in query_obj.columns
+                    + query_obj.groupby
+                    + [flt["col"] for flt in query_obj.filter]
+                    + utils.get_column_names_from_metrics(query_obj.metrics)
+                    if col not in self.datasource.column_names
+                ]
+                if invalid_columns:
+                    raise QueryObjectValidationError(
+                        _(
+                            "Columns missing in datasource: %(invalid_columns)s",
+                            invalid_columns=invalid_columns,
+                        )
+                    )
                 query_result = self.get_query_result(query_obj)
                 status = query_result["status"]
                 query = query_result["query"]
@@ -244,24 +258,25 @@ class QueryContext:
                     if not self.force:
                         stats_logger.incr("loaded_from_source_without_force")
                     is_loaded = True
+            except QueryObjectValidationError as ex:
+                error_message = str(ex)
+                status = utils.QueryStatus.FAILED
             except Exception as ex:  # pylint: disable=broad-except
                 logger.exception(ex)
                 if not error_message:
-                    error_message = "{}".format(ex)
+                    error_message = str(ex)
                 status = utils.QueryStatus.FAILED
                 stacktrace = utils.get_stacktrace()
 
             if is_loaded and cache_key and cache and status != utils.QueryStatus.FAILED:
-                try:
-                    cache_value = dict(dttm=cached_dttm, df=df, query=query)
-                    stats_logger.incr("set_cache_key")
-                    cache.set(cache_key, cache_value, timeout=self.cache_timeout)
-                except Exception as ex:  # pylint: disable=broad-except
-                    # cache.set call can fail if the backend is down or if
-                    # the key is too large or whatever other reasons
-                    logger.warning("Could not cache key %s", cache_key)
-                    logger.exception(ex)
-                    cache.delete(cache_key)
+                set_and_log_cache(
+                    cache_key,
+                    df,
+                    query,
+                    cached_dttm,
+                    self.cache_timeout,
+                    self.datasource.uid,
+                )
         return {
             "cache_key": cache_key,
             "cached_dttm": cache_value["dttm"] if cache_value is not None else None,

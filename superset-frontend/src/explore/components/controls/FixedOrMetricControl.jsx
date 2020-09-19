@@ -18,8 +18,9 @@
  */
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Label, Panel } from 'react-bootstrap';
+import { Panel } from 'react-bootstrap';
 
+import Label from 'src/components/Label';
 import TextControl from './TextControl';
 import MetricsControl from './MetricsControl';
 import ControlHeader from '../ControlHeader';
@@ -65,6 +66,7 @@ export default class FixedOrMetricControl extends React.Component {
       metricValue: type === controlTypes.metric ? value : null,
     };
   }
+
   onChange() {
     this.props.onChange({
       type: this.state.type,
@@ -74,12 +76,15 @@ export default class FixedOrMetricControl extends React.Component {
           : this.state.metricValue,
     });
   }
+
   setType(type) {
     this.setState({ type }, this.onChange);
   }
+
   setFixedValue(fixedValue) {
     this.setState({ fixedValue }, this.onChange);
   }
+
   setMetric(metricValue) {
     this.setState({ metricValue }, this.onChange);
   }
@@ -103,7 +108,7 @@ export default class FixedOrMetricControl extends React.Component {
     return (
       <div>
         <ControlHeader {...this.props} />
-        <Label style={{ cursor: 'pointer' }} onClick={this.toggle}>
+        <Label onClick={this.toggle}>
           {this.state.type === controlTypes.fixed && (
             <span>{this.state.fixedValue}</span>
           )}

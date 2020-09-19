@@ -33,24 +33,21 @@ say() {
 
 # default command to run when the `run` input is empty
 default-setup-command() {
-  pip-install
+  apt-get-install
+  pip-upgrade
 }
 
-# install python dependencies
-pip-install() {
-  cd "$GITHUB_WORKSPACE"
+apt-get-install() {
+    say "::group::apt-get install dependencies"
+    sudo apt-get update && sudo apt-get install --yes \
+      libsasl2-dev
+    say "::endgroup::"
+}
 
-  # Pip cache saves at most about 20s on a good day
-  # cache-restore pip
-
-  say "::group::Install Python pacakges"
+pip-upgrade() {
+  say "::group::Upgrade pip"
   pip install --upgrade pip
-  pip install -r requirements.txt
-  pip install -r requirements-dev.txt
-  pip install -e ".[postgres,mysql]"
   say "::endgroup::"
-
-  # cache-save pip
 }
 
 # prepare (lint and build) frontend code
@@ -62,8 +59,7 @@ npm-install() {
   say "::group::Install npm packages"
   echo "npm: $(npm --version)"
   echo "node: $(node --version)"
-  rm -rf ./node_modules
-  npm install
+  npm ci
   say "::endgroup::"
 
   # cache-save npm
@@ -123,6 +119,7 @@ testdata() {
   say "::group::Load test data"
   # must specify PYTHONPATH to make `tests.superset_test_config` importable
   export PYTHONPATH="$GITHUB_WORKSPACE"
+  pip install -e .
   superset db upgrade
   superset load_test_users
   superset load_examples --load-test-data
@@ -184,6 +181,7 @@ cypress-run-all() {
   # so errors can print to stderr.
   local flasklog="${HOME}/flask.log"
   local port=8081
+  export CYPRESS_BASE_URL="http://localhost:${port}"
 
   nohup flask run --no-debugger -p $port >"$flasklog" 2>&1 </dev/null &
   local flaskProcessId=$!
@@ -192,7 +190,8 @@ cypress-run-all() {
 
   # Upload code coverage separately so each page can have separate flags
   # -c will clean existing coverage reports, -F means add flags
-  codecov -cF "cypress"
+  # || true to prevent CI failure on codecov upload
+  codecov -cF "cypress" || true
 
   # After job is done, print out Flask log for debugging
   say "::group::Flask log for default run"
@@ -208,7 +207,9 @@ cypress-run-all() {
   local flaskProcessId=$!
 
   cypress-run "sqllab/*" "Backend persist"
-  codecov -cF "cypress"
+
+  # || true to prevent CI failure on codecov upload
+  codecov -cF "cypress" || true
 
   say "::group::Flask log for backend persist"
   cat "$flasklog"

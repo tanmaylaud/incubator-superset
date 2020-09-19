@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+import { ReactNode } from 'react';
+
 export interface SortColumn {
   id: string;
   desc?: boolean;
@@ -28,8 +30,15 @@ export interface SelectOption {
   value: any;
 }
 
+export interface CardSortSelectOption {
+  desc: boolean;
+  id: any;
+  label: string;
+  value: any;
+}
+
 export interface Filter {
-  Header: string;
+  Header: ReactNode;
   id: string;
   operators?: SelectOption[];
   operator?:

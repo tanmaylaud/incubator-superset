@@ -22,11 +22,11 @@ from decimal import Decimal
 import hashlib
 import json
 import os
+import re
 from unittest.mock import Mock, patch
 
 import numpy
 from flask import Flask, g
-from flask_caching import Cache
 import marshmallow
 from sqlalchemy.exc import ArgumentError
 
@@ -34,12 +34,15 @@ import tests.test_app
 from superset import app, db, security_manager
 from superset.exceptions import CertificateException, SupersetException
 from superset.models.core import Database, Log
-from superset.utils.cache_manager import CacheManager
+from superset.models.dashboard import Dashboard
+from superset.models.slice import Slice
 from superset.utils.core import (
     base_json_conv,
+    cast_to_num,
     convert_legacy_filters_into_adhoc,
     create_ssl_cert_file,
     format_timedelta,
+    get_form_data_token,
     get_iterable,
     get_email_address_list,
     get_or_create_db,
@@ -829,32 +832,6 @@ class TestUtils(SupersetTestCase):
         self.assertIsNone(parse_js_uri_path_item(None))
         self.assertIsNotNone(parse_js_uri_path_item("item"))
 
-    def test_setup_cache_null_config(self):
-        app = Flask(__name__)
-        cache_config = {"CACHE_TYPE": "null"}
-        assert isinstance(CacheManager._setup_cache(app, cache_config), Cache)
-
-    def test_setup_cache_standard_config(self):
-        app = Flask(__name__)
-        cache_config = {
-            "CACHE_TYPE": "redis",
-            "CACHE_DEFAULT_TIMEOUT": 60,
-            "CACHE_KEY_PREFIX": "superset_results",
-            "CACHE_REDIS_URL": "redis://localhost:6379/0",
-        }
-        assert isinstance(CacheManager._setup_cache(app, cache_config), Cache) is True
-
-    def test_setup_cache_custom_function(self):
-        app = Flask(__name__)
-        CustomCache = type("CustomCache", (object,), {"__init__": lambda *args: None})
-
-        def init_cache(app):
-            return CustomCache(app, {})
-
-        assert (
-            isinstance(CacheManager._setup_cache(app, init_cache), CustomCache) is True
-        )
-
     def test_get_stacktrace(self):
         with app.app_context():
             app.config["SHOW_STACKTRACE"] = True
@@ -962,268 +939,47 @@ class TestUtils(SupersetTestCase):
         self.assertListEqual(get_iterable("foo"), ["foo"])
 
     def test_build_extra_filters(self):
-        layout = {
-            "CHART-2ee52f30": {
-                "children": [],
-                "id": "CHART-2ee52f30",
-                "meta": {
-                    "chartId": 1020,
-                    "height": 38,
-                    "sliceName": "Chart 927",
-                    "width": 6,
-                },
-                "parents": [
-                    "ROOT_ID",
-                    "TABS-Qq4sdkANSY",
-                    "TAB-VrhTX2WUlO",
-                    "TABS-N1zN4CIZP0",
-                    "TAB-asWdJzKmTN",
-                    "ROW-i_sG4ccXE",
-                ],
-                "type": "CHART",
-            },
-            "CHART-36bfc934": {
-                "children": [],
-                "id": "CHART-36bfc934",
-                "meta": {
-                    "chartId": 1018,
-                    "height": 26,
-                    "sliceName": "Region Filter",
-                    "width": 2,
-                },
-                "parents": [
-                    "ROOT_ID",
-                    "TABS-Qq4sdkANSY",
-                    "TAB-W62P60D88",
-                    "ROW-1e064e3c",
-                    "COLUMN-fe3914b8",
-                ],
-                "type": "CHART",
-            },
-            "CHART-E_y2cuNHTv": {
-                "children": [],
-                "id": "CHART-E_y2cuNHTv",
-                "meta": {"chartId": 998, "height": 55, "sliceName": "MAP", "width": 6},
-                "parents": [
-                    "ROOT_ID",
-                    "TABS-Qq4sdkANSY",
-                    "TAB-W62P60D88",
-                    "ROW-1e064e3c",
-                ],
-                "type": "CHART",
-            },
-            "CHART-JNxDOsAfEb": {
-                "children": [],
-                "id": "CHART-JNxDOsAfEb",
-                "meta": {
-                    "chartId": 1015,
-                    "height": 27,
-                    "sliceName": "Population",
-                    "width": 4,
-                },
-                "parents": [
-                    "ROOT_ID",
-                    "TABS-Qq4sdkANSY",
-                    "TAB-W62P60D88",
-                    "ROW-1e064e3c",
-                    "COLUMN-fe3914b8",
-                ],
-                "type": "CHART",
-            },
-            "CHART-KoOwqalV80": {
-                "children": [],
-                "id": "CHART-KoOwqalV80",
-                "meta": {
-                    "chartId": 927,
-                    "height": 20,
-                    "sliceName": "Chart 927",
-                    "width": 4,
-                },
-                "parents": [
-                    "ROOT_ID",
-                    "TABS-Qq4sdkANSY",
-                    "TAB-VrhTX2WUlO",
-                    "TABS-N1zN4CIZP0",
-                    "TAB-cHNWcBZC9",
-                    "ROW-9b9vrWKPY",
-                ],
-                "type": "CHART",
-            },
-            "CHART-YCQAPVK7mQ": {
-                "children": [],
-                "id": "CHART-YCQAPVK7mQ",
-                "meta": {
-                    "chartId": 1023,
-                    "height": 38,
-                    "sliceName": "World's Population",
-                    "width": 4,
-                },
-                "parents": [
-                    "ROOT_ID",
-                    "TABS-Qq4sdkANSY",
-                    "TAB-VrhTX2WUlO",
-                    "ROW-UfxFT36oV5",
-                ],
-                "type": "CHART",
-            },
-            "COLUMN-fe3914b8": {
-                "children": ["CHART-36bfc934", "CHART-JNxDOsAfEb"],
-                "id": "COLUMN-fe3914b8",
-                "meta": {"background": "BACKGROUND_TRANSPARENT", "width": 6},
-                "parents": [
-                    "ROOT_ID",
-                    "TABS-Qq4sdkANSY",
-                    "TAB-W62P60D88",
-                    "ROW-1e064e3c",
-                ],
-                "type": "COLUMN",
-            },
-            "DASHBOARD_VERSION_KEY": "v2",
-            "GRID_ID": {
-                "children": [],
-                "id": "GRID_ID",
-                "parents": ["ROOT_ID"],
-                "type": "GRID",
-            },
-            "HEADER_ID": {
-                "id": "HEADER_ID",
-                "meta": {"text": "Test warmup 1023"},
-                "type": "HEADER",
-            },
-            "ROOT_ID": {
-                "children": ["TABS-Qq4sdkANSY"],
-                "id": "ROOT_ID",
-                "type": "ROOT",
-            },
-            "ROW-1e064e3c": {
-                "children": ["COLUMN-fe3914b8", "CHART-E_y2cuNHTv"],
-                "id": "ROW-1e064e3c",
-                "meta": {"background": "BACKGROUND_TRANSPARENT"},
-                "parents": ["ROOT_ID", "TABS-Qq4sdkANSY", "TAB-W62P60D88"],
-                "type": "ROW",
-            },
-            "ROW-9b9vrWKPY": {
-                "children": ["CHART-KoOwqalV80"],
-                "id": "ROW-9b9vrWKPY",
-                "meta": {"background": "BACKGROUND_TRANSPARENT"},
-                "parents": [
-                    "ROOT_ID",
-                    "TABS-Qq4sdkANSY",
-                    "TAB-VrhTX2WUlO",
-                    "TABS-N1zN4CIZP0",
-                    "TAB-cHNWcBZC9",
-                ],
-                "type": "ROW",
-            },
-            "ROW-UfxFT36oV5": {
-                "children": ["CHART-YCQAPVK7mQ"],
-                "id": "ROW-UfxFT36oV5",
-                "meta": {"background": "BACKGROUND_TRANSPARENT"},
-                "parents": ["ROOT_ID", "TABS-Qq4sdkANSY", "TAB-VrhTX2WUlO"],
-                "type": "ROW",
-            },
-            "ROW-i_sG4ccXE": {
-                "children": ["CHART-2ee52f30"],
-                "id": "ROW-i_sG4ccXE",
-                "meta": {"background": "BACKGROUND_TRANSPARENT"},
-                "parents": [
-                    "ROOT_ID",
-                    "TABS-Qq4sdkANSY",
-                    "TAB-VrhTX2WUlO",
-                    "TABS-N1zN4CIZP0",
-                    "TAB-asWdJzKmTN",
-                ],
-                "type": "ROW",
-            },
-            "TAB-VrhTX2WUlO": {
-                "children": ["ROW-UfxFT36oV5", "TABS-N1zN4CIZP0"],
-                "id": "TAB-VrhTX2WUlO",
-                "meta": {"text": "New Tab"},
-                "parents": ["ROOT_ID", "TABS-Qq4sdkANSY"],
-                "type": "TAB",
-            },
-            "TAB-W62P60D88": {
-                "children": ["ROW-1e064e3c"],
-                "id": "TAB-W62P60D88",
-                "meta": {"text": "Tab 2"},
-                "parents": ["ROOT_ID", "TABS-Qq4sdkANSY"],
-                "type": "TAB",
-            },
-            "TAB-asWdJzKmTN": {
-                "children": ["ROW-i_sG4ccXE"],
-                "id": "TAB-asWdJzKmTN",
-                "meta": {"text": "nested tab 1"},
-                "parents": [
-                    "ROOT_ID",
-                    "TABS-Qq4sdkANSY",
-                    "TAB-VrhTX2WUlO",
-                    "TABS-N1zN4CIZP0",
-                ],
-                "type": "TAB",
-            },
-            "TAB-cHNWcBZC9": {
-                "children": ["ROW-9b9vrWKPY"],
-                "id": "TAB-cHNWcBZC9",
-                "meta": {"text": "test2d tab 2"},
-                "parents": [
-                    "ROOT_ID",
-                    "TABS-Qq4sdkANSY",
-                    "TAB-VrhTX2WUlO",
-                    "TABS-N1zN4CIZP0",
-                ],
-                "type": "TAB",
-            },
-            "TABS-N1zN4CIZP0": {
-                "children": ["TAB-asWdJzKmTN", "TAB-cHNWcBZC9"],
-                "id": "TABS-N1zN4CIZP0",
-                "meta": {},
-                "parents": ["ROOT_ID", "TABS-Qq4sdkANSY", "TAB-VrhTX2WUlO"],
-                "type": "TABS",
-            },
-            "TABS-Qq4sdkANSY": {
-                "children": ["TAB-VrhTX2WUlO", "TAB-W62P60D88"],
-                "id": "TABS-Qq4sdkANSY",
-                "meta": {},
-                "parents": ["ROOT_ID"],
-                "type": "TABS",
-            },
-        }
+        world_health = db.session.query(Dashboard).filter_by(slug="world_health").one()
+        layout = json.loads(world_health.position_json)
+        filter_ = db.session.query(Slice).filter_by(slice_name="Region Filter").one()
+        world = db.session.query(Slice).filter_by(slice_name="World's Population").one()
+        box_plot = db.session.query(Slice).filter_by(slice_name="Box plot").one()
+        treemap = db.session.query(Slice).filter_by(slice_name="Treemap").one()
+
         filter_scopes = {
-            "1018": {
-                "region": {"scope": ["TAB-W62P60D88"], "immune": [998]},
-                "country_name": {"scope": ["ROOT_ID"], "immune": [927, 998]},
+            str(filter_.id): {
+                "region": {"scope": ["ROOT_ID"], "immune": [treemap.id]},
+                "country_name": {
+                    "scope": ["ROOT_ID"],
+                    "immune": [treemap.id, box_plot.id],
+                },
             }
         }
+
         default_filters = {
-            "1018": {"region": ["North America"], "country_name": ["United States"]}
+            str(filter_.id): {
+                "region": ["North America"],
+                "country_name": ["United States"],
+            }
         }
 
         # immune to all filters
-        slice_id = 998
-        extra_filters = build_extra_filters(
-            layout, filter_scopes, default_filters, slice_id
+        assert (
+            build_extra_filters(layout, filter_scopes, default_filters, treemap.id)
+            == []
         )
-        expected = []
-        self.assertEqual(extra_filters, expected)
 
         # in scope
-        slice_id = 1015
-        extra_filters = build_extra_filters(
-            layout, filter_scopes, default_filters, slice_id
-        )
-        expected = [
-            {"col": "region", "op": "in", "val": ["North America"]},
+        assert build_extra_filters(
+            layout, filter_scopes, default_filters, world.id
+        ) == [
+            {"col": "region", "op": "==", "val": "North America"},
             {"col": "country_name", "op": "in", "val": ["United States"]},
         ]
-        self.assertEqual(extra_filters, expected)
 
-        # not in scope
-        slice_id = 927
-        extra_filters = build_extra_filters(
-            layout, filter_scopes, default_filters, slice_id
-        )
-        expected = []
-        self.assertEqual(extra_filters, expected)
+        assert build_extra_filters(
+            layout, filter_scopes, default_filters, box_plot.id
+        ) == [{"col": "region", "op": "==", "val": "North America"}]
 
     def test_ssl_certificate_parse(self):
         parsed_certificate = parse_ssl_cert(ssl_certificate)
@@ -1365,3 +1121,16 @@ class TestUtils(SupersetTestCase):
         self.assertEqual("BaZ", validator("BaZ"))
         self.assertRaises(marshmallow.ValidationError, validator, "qwerty")
         self.assertRaises(marshmallow.ValidationError, validator, 4)
+
+    def test_cast_to_num(self) -> None:
+        assert cast_to_num("5") == 5
+        assert cast_to_num("5.2") == 5.2
+        assert cast_to_num(10) == 10
+        assert cast_to_num(10.1) == 10.1
+        assert cast_to_num(None) is None
+        assert cast_to_num("this is not a string") is None
+
+    def test_get_form_data_token(self):
+        assert get_form_data_token({"token": "token_abcdefg1"}) == "token_abcdefg1"
+        generated_token = get_form_data_token({})
+        assert re.match(r"^token_[a-z0-9]{8}$", generated_token) is not None
