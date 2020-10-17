@@ -24,25 +24,23 @@ import { FORM_DATA_DEFAULTS, NUM_METRIC } from './visualizations/shared.helper';
 describe('Datasource control', () => {
   const newMetricName = `abc${Date.now()}`;
 
-  before(() => {
-    cy.server();
-    cy.login();
-    cy.route('GET', '/superset/explore_json/**').as('getJson');
-    cy.route('POST', '/superset/explore_json/**').as('postJson');
-  });
-
-  it('should allow edit datasource', () => {
+  it('should allow edit dataset', () => {
     let numScripts = 0;
 
+    cy.login();
+    cy.server();
+    cy.route('GET', '/superset/explore_json/**').as('getJson');
+    cy.route('POST', '/superset/explore_json/**').as('postJson');
     cy.visitChartByName('Num Births Trend');
     cy.verifySliceSuccess({ waitAlias: '@postJson' });
+
     cy.get('#datasource_menu').click();
 
     cy.get('script').then(nodes => {
       numScripts = nodes.length;
     });
 
-    cy.get('a').contains('Edit Datasource').click();
+    cy.get('a').contains('Edit Dataset').click();
 
     // should load additional scripts for the modal
     cy.get('script').then(nodes => {
@@ -50,7 +48,8 @@ describe('Datasource control', () => {
     });
 
     // create new metric
-    cy.get('table button').contains('Add Item', { timeout: 10000 }).click();
+    cy.get('a[role="tab"]').contains('Metrics').click();
+    cy.get('button').contains('Add Item', { timeout: 10000 }).click();
     cy.get('input[value="<new metric>"]').click();
     cy.get('input[value="<new metric>"]')
       .focus()
@@ -65,7 +64,8 @@ describe('Datasource control', () => {
       .type(newMetricName, { force: true });
     // delete metric
     cy.get('#datasource_menu').click();
-    cy.get('a').contains('Edit Datasource').click();
+    cy.get('a').contains('Edit Dataset').click();
+    cy.get('a[role="tab"]').contains('Metrics').click();
     cy.get(`input[value="${newMetricName}"]`)
       .closest('tr')
       .find('.fa-trash')

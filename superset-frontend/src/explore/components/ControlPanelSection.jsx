@@ -44,7 +44,7 @@ export default class ControlPanelSection extends React.Component {
   }
 
   toggleExpand() {
-    this.setState({ expanded: !this.state.expanded });
+    this.setState(prevState => ({ expanded: !prevState.expanded }));
   }
 
   renderHeader() {
@@ -53,7 +53,12 @@ export default class ControlPanelSection extends React.Component {
       label && (
         <div>
           <span>
-            <span role="button" tabIndex={0} onClick={this.toggleExpand}>
+            <span
+              data-test="clickable-control-panel-section-title"
+              role="button"
+              tabIndex={0}
+              onClick={this.toggleExpand}
+            >
               {label}
             </span>{' '}
             {description && (

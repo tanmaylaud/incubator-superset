@@ -23,10 +23,9 @@ import {
   Col,
   FormControl,
   FormGroup,
-  // @ts-ignore
+  FormControlProps,
 } from 'react-bootstrap';
 import Button from 'src/components/Button';
-// @ts-ignore
 import Dialog from 'react-bootstrap-dialog';
 import { OptionsType } from 'react-select/src/types';
 import { AsyncSelect } from 'src/components/Select';
@@ -160,7 +159,7 @@ function PropertiesModal({ slice, onHide, onSave }: InternalProps) {
 
   return (
     <form onSubmit={onSubmit}>
-      <Modal.Header closeButton>
+      <Modal.Header data-test="properties-edit-modal" closeButton>
         <Modal.Title>Edit Chart Properties</Modal.Title>
       </Modal.Header>
       <Modal.Body>
@@ -173,13 +172,13 @@ function PropertiesModal({ slice, onHide, onSave }: InternalProps) {
               </FormLabel>
               <FormControl
                 name="name"
+                data-test="properties-name-input"
                 type="text"
                 bsSize="sm"
                 value={name}
-                // @ts-ignore
-                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-                  setName(event.target.value)
-                }
+                onChange={(
+                  event: React.FormEvent<FormControl & FormControlProps>,
+                ) => setName((event.currentTarget?.value as string) ?? '')}
               />
             </FormGroup>
             <FormGroup>
@@ -190,9 +189,10 @@ function PropertiesModal({ slice, onHide, onSave }: InternalProps) {
                 componentClass="textarea"
                 bsSize="sm"
                 value={description}
-                // @ts-ignore
-                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-                  setDescription(event.target.value)
+                onChange={(
+                  event: React.FormEvent<FormControl & FormControlProps>,
+                ) =>
+                  setDescription((event.currentTarget?.value as string) ?? '')
                 }
                 style={{ maxWidth: '100%' }}
               />
@@ -212,14 +212,17 @@ function PropertiesModal({ slice, onHide, onSave }: InternalProps) {
                 type="text"
                 bsSize="sm"
                 value={cacheTimeout}
-                // @ts-ignore
-                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-                  setCacheTimeout(event.target.value.replace(/[^0-9]/, ''))
-                }
+                onChange={(
+                  event: React.FormEvent<FormControl & FormControlProps>,
+                ) => {
+                  const targetValue =
+                    (event.currentTarget?.value as string) ?? '';
+                  setCacheTimeout(targetValue.replace(/[^0-9]/, ''));
+                }}
               />
               <p className="help-block">
                 {t(
-                  'Duration (in seconds) of the caching timeout for this chart. Note this defaults to the datasource/table timeout if undefined.',
+                  "Duration (in seconds) of the caching timeout for this chart. Note this defaults to the dataset's timeout if undefined.",
                 )}
               </p>
             </FormGroup>
@@ -247,10 +250,17 @@ function PropertiesModal({ slice, onHide, onSave }: InternalProps) {
         </Row>
       </Modal.Body>
       <Modal.Footer>
-        <Button type="button" buttonSize="sm" onClick={onHide} cta>
+        <Button
+          data-test="properties-modal-cancel-button"
+          type="button"
+          buttonSize="sm"
+          onClick={onHide}
+          cta
+        >
           {t('Cancel')}
         </Button>
         <Button
+          data-test="properties-save-button"
           type="submit"
           buttonSize="sm"
           buttonStyle="primary"

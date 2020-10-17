@@ -42,7 +42,6 @@ else:
     from superset.viz import BaseViz, viz_types  # type: ignore
 
 if TYPE_CHECKING:
-    # pylint: disable=unused-import
     from superset.connectors.base.models import BaseDatasource
 
 metadata = Model.metadata  # pylint: disable=no-member
@@ -141,9 +140,14 @@ class Slice(
     def datasource_name_text(self) -> Optional[str]:
         # pylint: disable=no-member
         if self.table:
+            if self.table.schema:
+                return f"{self.table.schema}.{self.table.table_name}"
             return self.table.table_name
-        datasource = self.datasource
-        return datasource.name if datasource else None
+        if self.datasource:
+            if self.datasource.schema:
+                return f"{self.datasource.schema}.{self.datasource.name}"
+            return self.datasource.name
+        return None
 
     @property
     def datasource_edit_url(self) -> Optional[str]:
@@ -199,15 +203,15 @@ class Slice(
     @property
     def digest(self) -> str:
         """
-            Returns a MD5 HEX digest that makes this dashboard unique
+        Returns a MD5 HEX digest that makes this dashboard unique
         """
         return utils.md5_hex(self.params)
 
     @property
     def thumbnail_url(self) -> str:
         """
-            Returns a thumbnail URL with a HEX digest. We want to avoid browser cache
-            if the dashboard has changed
+        Returns a thumbnail URL with a HEX digest. We want to avoid browser cache
+        if the dashboard has changed
         """
         return f"/api/v1/chart/{self.id}/thumbnail/{self.digest}/"
 
@@ -333,8 +337,7 @@ class Slice(
         return f"/superset/explore/?form_data=%7B%22slice_id%22%3A%20{self.id}%7D"
 
 
-def set_related_perm(mapper: Mapper, connection: Connection, target: Slice) -> None:
-    # pylint: disable=unused-argument
+def set_related_perm(_mapper: Mapper, _connection: Connection, target: Slice) -> None:
     src_class = target.cls_model
     id_ = target.datasource_id
     if id_:
@@ -344,8 +347,8 @@ def set_related_perm(mapper: Mapper, connection: Connection, target: Slice) -> N
             target.schema_perm = ds.schema_perm
 
 
-def event_after_chart_changed(  # pylint: disable=unused-argument
-    mapper: Mapper, connection: Connection, target: Slice
+def event_after_chart_changed(
+    _mapper: Mapper, _connection: Connection, target: Slice
 ) -> None:
     url = get_url_path("Superset.slice", slice_id=target.id, standalone="true")
     cache_chart_thumbnail.delay(url, target.digest, force=True)

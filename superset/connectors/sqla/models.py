@@ -16,7 +16,7 @@
 # under the License.
 import json
 import logging
-from collections import OrderedDict
+from collections import defaultdict, OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, Hashable, List, NamedTuple, Optional, Tuple, Union
@@ -35,6 +35,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     desc,
+    Enum,
     ForeignKey,
     Integer,
     or_,
@@ -63,6 +64,7 @@ from superset.jinja_context import (
 from superset.models.annotations import Annotation
 from superset.models.core import Database
 from superset.models.helpers import AuditMixinNullable, QueryResult
+from superset.sql_parse import ParsedQuery
 from superset.typing import Metric, QueryObjectDict
 from superset.utils import core as utils, import_datasource
 
@@ -92,8 +94,8 @@ class MetadataResult:
 
 
 class AnnotationDatasource(BaseDatasource):
-    """ Dummy object so we can query annotations using 'Viz' objects just like
-        regular datasources.
+    """Dummy object so we can query annotations using 'Viz' objects just like
+    regular datasources.
     """
 
     cache_timeout = 0
@@ -754,6 +756,14 @@ class SqlaTable(  # pylint: disable=too-many-public-methods,too-many-instance-at
                     )
 
             from_sql = sqlparse.format(from_sql, strip_comments=True)
+            if len(sqlparse.split(from_sql)) > 1:
+                raise QueryObjectValidationError(
+                    _("Virtual dataset query cannot consist of multiple statements")
+                )
+            if not ParsedQuery(from_sql).is_readonly():
+                raise QueryObjectValidationError(
+                    _("Virtual dataset query must be read-only")
+                )
             return TextAsFrom(sa.text(from_sql), []).alias("expr_qry")
         return self.get_sqla_table()
 
@@ -798,11 +808,14 @@ class SqlaTable(  # pylint: disable=too-many-public-methods,too-many-instance-at
         :returns: A list of SQL clauses to be ANDed together.
         :rtype: List[str]
         """
+        filters_grouped: Dict[Union[int, str], List[str]] = defaultdict(list)
         try:
-            return [
-                text("({})".format(template_processor.process_template(f.clause)))
-                for f in security_manager.get_rls_filters(self)
-            ]
+            for filter_ in security_manager.get_rls_filters(self):
+                clause = text(
+                    f"({template_processor.process_template(filter_.clause)})"
+                )
+                filters_grouped[filter_.group_key or filter_.id].append(clause)
+            return [or_(*clauses) for clauses in filters_grouped.values()]
         except TemplateError as ex:
             raise QueryObjectValidationError(
                 _("Error in jinja expression in RLS filters: %(msg)s", msg=ex.message,)
@@ -818,7 +831,7 @@ class SqlaTable(  # pylint: disable=too-many-public-methods,too-many-instance-at
         groupby: Optional[List[str]] = None,
         filter: Optional[  # pylint: disable=redefined-builtin
             List[Dict[str, Any]]
-        ] = None,  # pylint: disable=bad-whitespace
+        ] = None,
         is_timeseries: bool = True,
         timeseries_limit: int = 15,
         timeseries_limit_metric: Optional[Metric] = None,
@@ -1068,9 +1081,6 @@ class SqlaTable(  # pylint: disable=too-many-public-methods,too-many-instance-at
         else:
             qry = qry.where(and_(*where_clause_and))
         qry = qry.having(and_(*having_clause_and))
-
-        if not orderby and ((is_sip_38 and metrics) or (not is_sip_38 and not columns)):
-            orderby = [(main_metric_expr, not order_desc)]
 
         # To ensure correct handling of the ORDER BY labeling we need to reference the
         # metric instance if defined in the SELECT clause.
@@ -1371,9 +1381,9 @@ class SqlaTable(  # pylint: disable=too-many-public-methods,too-many-instance-at
     ) -> int:
         """Imports the datasource from the object to the database.
 
-         Metrics and columns and datasource will be overrided if exists.
-         This function can be used to import/export dashboards between multiple
-         superset instances. Audit metadata isn't copies over.
+        Metrics and columns and datasource will be overrided if exists.
+        This function can be used to import/export dashboards between multiple
+        superset instances. Audit metadata isn't copies over.
         """
 
         def lookup_sqlatable(table_: "SqlaTable") -> "SqlaTable":
@@ -1506,6 +1516,10 @@ class RowLevelSecurityFilter(Model, AuditMixinNullable):
 
     __tablename__ = "row_level_security_filters"
     id = Column(Integer, primary_key=True)
+    filter_type = Column(
+        Enum(*[filter_type.value for filter_type in utils.RowLevelSecurityFilterType])
+    )
+    group_key = Column(String(255), nullable=True)
     roles = relationship(
         security_manager.role_model,
         secondary=RLSFilterRoles,

@@ -40,7 +40,11 @@ from superset.dashboards.commands.exceptions import (
     DashboardUpdateFailedError,
 )
 from superset.dashboards.commands.update import UpdateDashboardCommand
-from superset.dashboards.filters import DashboardFilter, DashboardTitleOrSlugFilter
+from superset.dashboards.filters import (
+    DashboardFavoriteFilter,
+    DashboardFilter,
+    DashboardTitleOrSlugFilter,
+)
 from superset.dashboards.schemas import (
     DashboardPostSchema,
     DashboardPutSchema,
@@ -113,6 +117,9 @@ class DashboardRestApi(BaseSupersetModelRestApi):
         "changed_by_url",
         "changed_on_utc",
         "changed_on_delta_humanized",
+        "created_by.first_name",
+        "created_by.id",
+        "created_by.last_name",
         "dashboard_title",
         "owners.id",
         "owners.username",
@@ -121,10 +128,11 @@ class DashboardRestApi(BaseSupersetModelRestApi):
     ]
     list_select_columns = list_columns + ["changed_on", "changed_by_fk"]
     order_columns = [
-        "dashboard_title",
-        "changed_on_delta_humanized",
-        "published",
         "changed_by.first_name",
+        "changed_on_delta_humanized",
+        "created_by.first_name",
+        "dashboard_title",
+        "published",
     ]
 
     add_columns = [
@@ -138,8 +146,18 @@ class DashboardRestApi(BaseSupersetModelRestApi):
     ]
     edit_columns = add_columns
 
-    search_columns = ("dashboard_title", "slug", "owners", "published")
-    search_filters = {"dashboard_title": [DashboardTitleOrSlugFilter]}
+    search_columns = (
+        "created_by",
+        "dashboard_title",
+        "id",
+        "owners",
+        "published",
+        "slug",
+    )
+    search_filters = {
+        "dashboard_title": [DashboardTitleOrSlugFilter],
+        "id": [DashboardFavoriteFilter],
+    }
     base_order = ("changed_on", "desc")
 
     add_model_schema = DashboardPostSchema()
@@ -152,9 +170,10 @@ class DashboardRestApi(BaseSupersetModelRestApi):
         "owners": ("first_name", "asc"),
     }
     related_field_filters = {
-        "owners": RelatedFieldFilter("first_name", FilterRelatedOwners)
+        "owners": RelatedFieldFilter("first_name", FilterRelatedOwners),
+        "created_by": RelatedFieldFilter("first_name", FilterRelatedOwners),
     }
-    allowed_rel_fields = {"owners"}
+    allowed_rel_fields = {"owners", "created_by"}
 
     openapi_spec_tag = "Dashboards"
     apispec_parameter_schemas = {
@@ -232,9 +251,7 @@ class DashboardRestApi(BaseSupersetModelRestApi):
     @protect()
     @safe
     @statsd_metrics
-    def put(  # pylint: disable=too-many-return-statements, arguments-differ
-        self, pk: int
-    ) -> Response:
+    def put(self, pk: int) -> Response:
         """Changes a Dashboard
         ---
         put:
@@ -286,24 +303,25 @@ class DashboardRestApi(BaseSupersetModelRestApi):
             return self.response_400(message=error.messages)
         try:
             changed_model = UpdateDashboardCommand(g.user, pk, item).run()
-            return self.response(200, id=changed_model.id, result=item)
+            response = self.response(200, id=changed_model.id, result=item)
         except DashboardNotFoundError:
-            return self.response_404()
+            response = self.response_404()
         except DashboardForbiddenError:
-            return self.response_403()
+            response = self.response_403()
         except DashboardInvalidError as ex:
             return self.response_422(message=ex.normalized_messages())
         except DashboardUpdateFailedError as ex:
             logger.error(
                 "Error updating model %s: %s", self.__class__.__name__, str(ex)
             )
-            return self.response_422(message=str(ex))
+            response = self.response_422(message=str(ex))
+        return response
 
     @expose("/<pk>", methods=["DELETE"])
     @protect()
     @safe
     @statsd_metrics
-    def delete(self, pk: int) -> Response:  # pylint: disable=arguments-differ
+    def delete(self, pk: int) -> Response:
         """Deletes a Dashboard
         ---
         delete:
@@ -353,9 +371,7 @@ class DashboardRestApi(BaseSupersetModelRestApi):
     @safe
     @statsd_metrics
     @rison(get_delete_ids_schema)
-    def bulk_delete(
-        self, **kwargs: Any
-    ) -> Response:  # pylint: disable=arguments-differ
+    def bulk_delete(self, **kwargs: Any) -> Response:
         """Delete bulk Dashboards
         ---
         delete:

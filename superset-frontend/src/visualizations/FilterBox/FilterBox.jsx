@@ -176,16 +176,21 @@ class FilterBox extends React.Component {
         vals = options;
       }
     }
-    const selectedValues = {
-      ...this.state.selectedValues,
-      [fltr]: vals,
-    };
 
-    this.setState({ selectedValues, hasChanged: true }, () => {
-      if (this.props.instantFiltering) {
-        this.props.onChange({ [fltr]: vals }, false);
-      }
-    });
+    this.setState(
+      prevState => ({
+        selectedValues: {
+          ...prevState.selectedValues,
+          [fltr]: vals,
+        },
+        hasChanged: true,
+      }),
+      () => {
+        if (this.props.instantFiltering) {
+          this.props.onChange({ [fltr]: vals }, false);
+        }
+      },
+    );
   }
 
   /**
@@ -263,7 +268,10 @@ class FilterBox extends React.Component {
     if (showDateFilter) {
       return (
         <div className="row space-1">
-          <div className="col-lg-12 col-xs-12 filter-container">
+          <div
+            className="col-lg-12 col-xs-12 filter-container"
+            data-test="date-filter-container"
+          >
             {this.renderFilterBadge(chartId, TIME_RANGE, label)}
             <DateFilterControl
               name={TIME_RANGE}
@@ -401,7 +409,7 @@ class FilterBox extends React.Component {
   }
 
   renderFilters() {
-    const { filtersFields, chartId } = this.props;
+    const { filtersFields = [], chartId } = this.props;
     return filtersFields.map(filterConfig => {
       const { label, key } = filterConfig;
       return (

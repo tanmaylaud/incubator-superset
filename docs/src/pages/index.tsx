@@ -36,6 +36,7 @@ import GitHubButton from 'react-github-btn';
 import { Databases } from '../resources/data';
 import Layout from '../components/layout';
 import Image from '../components/image';
+import DbImage from '../components/DbImage';
 import 'antd/dist/antd.css';
 import SEO from '../components/seo';
 import logo from '../images/superset-logo-horiz-apache.svg';
@@ -179,7 +180,7 @@ const integrationSection = css`
     font-size: 18px;
   }
 
-  .databaseList {
+  .database-list {
     margin-top: 100px;
     list-style-type: none;
     padding: 0px;
@@ -189,8 +190,8 @@ const integrationSection = css`
     flex-wrap: wrap;
     justify-content: space-around;
     margin-bottom: 50px;
-    a {
-      margin: 15px;
+    li {
+      padding: 15px;
     }
   }
 `;
@@ -274,6 +275,7 @@ const Feature = ({ icon, title, descr }: featureProps) => (
     </div>
   </li>
 );
+
 const Theme = () => {
   const config = useConfig();
   const slider = useRef(null);
@@ -444,45 +446,36 @@ const Theme = () => {
                 </div>
               </Carousel>
             </div>
-          </div>
-          <div css={integrationSection}>
-            <h2 css={secondaryHeading}>Supported Databases</h2>
+            <div css={integrationSection}>
+              <h2 css={secondaryHeading}>Supported Databases</h2>
 
-            <ul className="databaseList">
-              {Databases.map(
-                ({
-                  title, href, imgName: imageName, width, height,
-                }) => (
-                  <a
-                    href={href}
-                    target="_blank"
-                    key={imageName}
-                    rel="noreferrer"
-                  >
-                    <Image
-                      {...{
-                        imageName,
-                        type: 'db',
-                        width,
-                        height,
-                        alt: title,
-                      }}
-                    />
-                  </a>
-                ),
-              )}
-            </ul>
-            <span className="databaseSub">
-              {' '}
-              ... and any other SQLAlchemy
-              {' '}
-              <a href="https://superset.incubator.apache.org/installation.html#database-dependencies">
-                {' '}
-                compatible databases
-                {' '}
-              </a>
-              {' '}
-            </span>
+              <ul className="database-list">
+                {Databases.map(
+                  ({
+                    title, imgName: imageName, width, height,
+                  }) => (
+                    <li>
+                      <DbImage
+                        {...{
+                          imageName,
+                          width,
+                          height,
+                          alt: title,
+                        }}
+                      />
+                    </li>
+                  ),
+                )}
+              </ul>
+              <span className="databaseSub">
+                ... and any other
+                <a href="https://superset.apache.org/docs/databases/installing-database-drivers">
+                  {' '}
+                  compatible databases
+                  {' '}
+                </a>
+              </span>
+            </div>
           </div>
         </div>
       </Layout>

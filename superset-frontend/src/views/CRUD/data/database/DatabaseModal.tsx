@@ -21,6 +21,7 @@ import { styled, t, SupersetClient } from '@superset-ui/core';
 import { InfoTooltipWithTrigger } from '@superset-ui/chart-controls';
 import { useSingleViewResource } from 'src/views/CRUD/hooks';
 import withToasts from 'src/messageToasts/enhancers/withToasts';
+import getClientErrorObject from 'src/utils/getClientErrorObject';
 import Icon from 'src/components/Icon';
 import Modal from 'src/common/components/Modal';
 import Tabs from 'src/common/components/Tabs';
@@ -44,11 +45,10 @@ const StyledIcon = styled(Icon)`
 const StyledInputContainer = styled.div`
   margin-bottom: ${({ theme }) => theme.gridUnit * 2}px;
 
-  .label,
   .helper {
     display: block;
     padding: ${({ theme }) => theme.gridUnit}px 0;
-    color: ${({ theme }) => theme.colors.grayscale.light1};
+    color: ${({ theme }) => theme.colors.grayscale.base};
     font-size: ${({ theme }) => theme.typography.sizes.s - 1}px;
     text-align: left;
 
@@ -125,6 +125,9 @@ const DatabaseModal: FunctionComponent<DatabaseModalProps> = ({
   const [isHidden, setIsHidden] = useState<boolean>(true);
 
   const isEditMode = database !== null;
+  const defaultExtra =
+    '{\n  "metadata_params": {},\n  "engine_params": {},' +
+    '\n  "metadata_cache_timeout": {},\n  "schemas_allowed_for_csv_upload": [] \n}';
 
   // Database fetch logic
   const {
@@ -163,11 +166,13 @@ const DatabaseModal: FunctionComponent<DatabaseModalProps> = ({
       .then(() => {
         addSuccessToast(t('Connection looks good!'));
       })
-      .catch(() => {
-        addDangerToast(
-          t('ERROR: Connection failed, please check your connection settings'),
-        );
-      });
+      .catch(response =>
+        getClientErrorObject(response).then(error => {
+          addDangerToast(
+            t('ERROR: Connection failed. ') + error?.message || '',
+          );
+        }),
+      );
   };
 
   // Functions
@@ -294,7 +299,7 @@ const DatabaseModal: FunctionComponent<DatabaseModalProps> = ({
       show={show}
       title={
         <h4>
-          <StyledIcon name="databases" />
+          <StyledIcon name="database" />
           {isEditMode ? t('Edit Database') : t('Add Database')}
         </h4>
       }
@@ -310,8 +315,8 @@ const DatabaseModal: FunctionComponent<DatabaseModalProps> = ({
           key="1"
         >
           <StyledInputContainer>
-            <div className="label">
-              {t('Datasource Name')}
+            <div className="control-label">
+              {t('Database Name')}
               <span className="required">*</span>
             </div>
             <div className="input-container">
@@ -319,13 +324,13 @@ const DatabaseModal: FunctionComponent<DatabaseModalProps> = ({
                 type="text"
                 name="database_name"
                 value={db ? db.database_name : ''}
-                placeholder={t('Name your datasource')}
+                placeholder={t('Name your dataset')}
                 onChange={onInputChange}
               />
             </div>
           </StyledInputContainer>
           <StyledInputContainer>
-            <div className="label">
+            <div className="control-label">
               {t('SQLAlchemy URI')}
               <span className="required">*</span>
             </div>
@@ -356,7 +361,7 @@ const DatabaseModal: FunctionComponent<DatabaseModalProps> = ({
         </Tabs.TabPane>
         <Tabs.TabPane tab={<span>{t('Performance')}</span>} key="2">
           <StyledInputContainer>
-            <div className="label">{t('Chart Cache Timeout')}</div>
+            <div className="control-label">{t('Chart Cache Timeout')}</div>
             <div className="input-container">
               <input
                 type="number"
@@ -480,7 +485,7 @@ const DatabaseModal: FunctionComponent<DatabaseModalProps> = ({
             </StyledInputContainer>
           </StyledInputContainer>
           <StyledInputContainer>
-            <div className="label">{t('CTAS Schema')}</div>
+            <div className="control-label">{t('CTAS Schema')}</div>
             <div className="input-container">
               <input
                 type="text"
@@ -500,7 +505,7 @@ const DatabaseModal: FunctionComponent<DatabaseModalProps> = ({
         </Tabs.TabPane>
         <Tabs.TabPane tab={<span>{t('Security')}</span>} key="4">
           <StyledInputContainer>
-            <div className="label">{t('Secure Extra')}</div>
+            <div className="control-label">{t('Secure Extra')}</div>
             <div className="input-container">
               <textarea
                 name="encrypted_extra"
@@ -525,7 +530,7 @@ const DatabaseModal: FunctionComponent<DatabaseModalProps> = ({
             </div>
           </StyledInputContainer>
           <StyledInputContainer>
-            <div className="label">{t('Root Certificate')}</div>
+            <div className="control-label">{t('Root Certificate')}</div>
             <div className="input-container">
               <textarea
                 name="server_cert"
@@ -551,7 +556,7 @@ const DatabaseModal: FunctionComponent<DatabaseModalProps> = ({
                 checked={db ? !!db.impersonate_user : false}
                 onChange={onInputChange}
               />
-              <div>{t('Impersonate Logged In User (Presto & Hive')}</div>
+              <div>{t('Impersonate Logged In User (Presto & Hive)')}</div>
               <InfoTooltipWithTrigger
                 label="impersonate"
                 tooltip={t(
@@ -582,15 +587,11 @@ const DatabaseModal: FunctionComponent<DatabaseModalProps> = ({
             </div>
           </StyledInputContainer>
           <StyledInputContainer>
-            <div className="label">{t('Extra')}</div>
+            <div className="control-label">{t('Extra')}</div>
             <div className="input-container">
               <textarea
                 name="extra"
-                value={db ? db.extra || '' : ''}
-                placeholder={
-                  '{\n  "metadata_params": {},\n  "engine_params": {},' +
-                  '\n  "metadata_cache_timeout": {},\n  "schemas_allowed_for_csv_upload": [] \n}'
-                }
+                value={(db && db.extra) ?? defaultExtra}
                 onChange={onTextChange}
               />
             </div>

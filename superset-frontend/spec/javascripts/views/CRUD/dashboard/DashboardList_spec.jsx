@@ -70,7 +70,7 @@ fetchMock.get('/thumbnail', { body: new Blob(), sendAsJson: false });
 describe('DashboardList', () => {
   const isFeatureEnabledMock = jest
     .spyOn(featureFlags, 'isFeatureEnabled')
-    .mockImplementation(feature => feature === 'THUMBNAILS');
+    .mockImplementation(feature => feature === 'LISTVIEWS_DEFAULT_CARD_VIEW');
 
   afterAll(() => {
     isFeatureEnabledMock.restore();
@@ -118,22 +118,28 @@ describe('DashboardList', () => {
 
   it('edits', () => {
     expect(wrapper.find(PropertiesModal)).not.toExist();
-    wrapper.find('[data-test="pencil"]').first().simulate('click');
+    wrapper.find('[data-test="edit-alt"]').first().simulate('click');
     expect(wrapper.find(PropertiesModal)).toExist();
   });
 
   it('card view edits', () => {
-    wrapper.find('[data-test="pencil"]').last().simulate('click');
+    wrapper.find('[data-test="edit-alt"]').last().simulate('click');
     expect(wrapper.find(PropertiesModal)).toExist();
   });
 
   it('delete', () => {
-    wrapper.find('[data-test="trash"]').first().simulate('click');
+    wrapper
+      .find('[data-test="dashboard-list-trash-icon"]')
+      .first()
+      .simulate('click');
     expect(wrapper.find(ConfirmStatusChange)).toExist();
   });
 
   it('card view delete', () => {
-    wrapper.find('[data-test="trash"]').last().simulate('click');
+    wrapper
+      .find('[data-test="dashboard-list-trash-icon"]')
+      .last()
+      .simulate('click');
     expect(wrapper.find(ConfirmStatusChange)).toExist();
   });
 });

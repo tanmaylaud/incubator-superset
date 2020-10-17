@@ -57,6 +57,7 @@ Join our growing community!
 - [Shopkick](https://www.shopkick.com) [@LAlbertalli]
 - [Tails.com](https://tails.com) [@alanmcruickshank]
 - [THE ICONIC](http://theiconic.com.au/) [@ksaagariconic]
+- [Utair](https://www.utair.ru) [@utair-digital]
 - [Zalando](https://www.zalando.com) [@dmigo]
 - [Zalora](https://www.zalora.com) [@ksaagariconic]
 
@@ -95,6 +96,8 @@ Join our growing community!
 - [Tooploox](https://www.tooploox.com/) [@jakubczaplicki]
 - [Whale](http://whale.im)
 - [Windsor.ai](https://www.windsor.ai/) [@octaviancorlade]
+- [Zeta](https://www.zeta.tech/) [@shaikidris]
+
 
 ### Entertainment
 - [6play](https://www.6play.fr) [@CoryChaplin]

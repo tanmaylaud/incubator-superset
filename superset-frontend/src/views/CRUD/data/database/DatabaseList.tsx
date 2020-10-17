@@ -45,7 +45,7 @@ const IconBlack = styled(Icon)`
   color: ${({ theme }) => theme.colors.grayscale.dark1};
 `;
 
-function BooleanDisplay(value: any) {
+function BooleanDisplay({ value }: { value: Boolean }) {
   return value ? <IconBlack name="check" /> : <IconBlack name="cancel-x" />;
 }
 
@@ -126,19 +126,22 @@ function DatabaseList({ addDangerToast, addSuccessToast }: DatabaseListProps) {
   };
 
   if (canCreate) {
-    menuData.primaryButton = {
-      name: (
-        <>
-          {' '}
-          <i className="fa fa-plus" /> {t('Database')}{' '}
-        </>
-      ),
-      onClick: () => {
-        // Ensure modal will be opened in add mode
-        setCurrentDatabase(null);
-        setDatabaseModalOpen(true);
+    menuData.buttons = [
+      {
+        name: (
+          <>
+            {' '}
+            <i className="fa fa-plus" /> {t('Database')}{' '}
+          </>
+        ),
+        buttonStyle: 'primary',
+        onClick: () => {
+          // Ensure modal will be opened in add mode
+          setCurrentDatabase(null);
+          setDatabaseModalOpen(true);
+        },
       },
-    };
+    ];
   }
 
   const initialSort = [{ id: 'changed_on_delta_humanized', desc: true }];
@@ -177,7 +180,7 @@ function DatabaseList({ addDangerToast, addSuccessToast }: DatabaseListProps) {
         Header: (
           <TooltipWrapper
             label="allow-dml-header"
-            tooltip={t('Allow Data Danipulation Language')}
+            tooltip={t('Allow Data Manipulation Language')}
             placement="top"
           >
             <span>{t('DML')}</span>
@@ -253,7 +256,7 @@ function DatabaseList({ addDangerToast, addSuccessToast }: DatabaseListProps) {
                     className="action-button"
                     onClick={handleEdit}
                   >
-                    <Icon name="pencil" />
+                    <Icon name="edit-alt" />
                   </span>
                 </TooltipWrapper>
               )}
@@ -282,7 +285,7 @@ function DatabaseList({ addDangerToast, addSuccessToast }: DatabaseListProps) {
         disableSortBy: true,
       },
     ],
-    [canDelete, canCreate],
+    [canDelete, canEdit],
   );
 
   const filters: Filters = useMemo(

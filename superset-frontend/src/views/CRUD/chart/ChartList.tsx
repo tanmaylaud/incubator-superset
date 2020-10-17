@@ -24,7 +24,7 @@ import { isFeatureEnabled, FeatureFlag } from 'src/featureFlags';
 import { createFetchRelated, createErrorHandler } from 'src/views/CRUD/utils';
 import { useListViewResource, useFavoriteStatus } from 'src/views/CRUD/hooks';
 import ConfirmStatusChange from 'src/components/ConfirmStatusChange';
-import SubMenu from 'src/components/Menu/SubMenu';
+import SubMenu, { SubMenuProps } from 'src/components/Menu/SubMenu';
 import AvatarIcon from 'src/components/AvatarIcon';
 import Icon from 'src/components/Icon';
 import FaveStar from 'src/components/FaveStar';
@@ -39,6 +39,7 @@ import Chart from 'src/types/Chart';
 import ListViewCard from 'src/components/ListViewCard';
 import Label from 'src/components/Label';
 import { Dropdown, Menu } from 'src/common/components';
+import TooltipWrapper from 'src/components/TooltipWrapper';
 
 const PAGE_SIZE = 25;
 const FAVESTAR_BASE_URL = '/superset/favstar/slice';
@@ -109,6 +110,7 @@ function ChartList(props: ChartListProps) {
     setSliceCurrentlyEditing,
   ] = useState<Slice | null>(null);
 
+  const canCreate = hasPerm('can_add');
   const canEdit = hasPerm('can_edit');
   const canDelete = hasPerm('can_delete');
   const initialSort = [{ id: 'changed_on_delta_humanized', desc: true }];
@@ -173,8 +175,6 @@ function ChartList(props: ChartListProps) {
         fetchFaveStar={fetchFaveStar}
         saveFaveStar={saveFaveStar}
         isStarred={!!favoriteStatusRef.current[id]}
-        height={20}
-        width={20}
       />
     );
   }
@@ -190,6 +190,7 @@ function ChartList(props: ChartListProps) {
         Header: '',
         id: 'favorite',
         disableSortBy: true,
+        size: 'xs',
       },
       {
         Cell: ({
@@ -208,6 +209,7 @@ function ChartList(props: ChartListProps) {
         }: any) => vizType,
         Header: t('Visualization Type'),
         accessor: 'viz_type',
+        size: 'xxl',
       },
       {
         Cell: ({
@@ -219,7 +221,8 @@ function ChartList(props: ChartListProps) {
           },
         }: any) => <a href={dsUrl}>{dsNameTxt}</a>,
         Header: t('Dataset'),
-        accessor: 'datasource_name',
+        accessor: 'datasource_id',
+        size: 'xl',
       },
       {
         Cell: ({
@@ -232,6 +235,7 @@ function ChartList(props: ChartListProps) {
         }: any) => <a href={changedByUrl}>{changedByName}</a>,
         Header: t('Modified By'),
         accessor: 'changed_by.first_name',
+        size: 'xl',
       },
       {
         Cell: ({
@@ -241,11 +245,7 @@ function ChartList(props: ChartListProps) {
         }: any) => <span className="no-wrap">{changedOn}</span>,
         Header: t('Last Modified'),
         accessor: 'changed_on_delta_humanized',
-      },
-      {
-        accessor: 'description',
-        hidden: true,
-        disableSortBy: true,
+        size: 'xl',
       },
       {
         accessor: 'owners',
@@ -253,9 +253,16 @@ function ChartList(props: ChartListProps) {
         disableSortBy: true,
       },
       {
-        accessor: 'datasource_id',
-        hidden: true,
+        Cell: ({
+          row: {
+            original: { created_by: createdBy },
+          },
+        }: any) =>
+          createdBy ? `${createdBy.first_name} ${createdBy.last_name}` : '',
+        Header: t('Created By'),
+        accessor: 'created_by',
         disableSortBy: true,
+        size: 'xl',
       },
       {
         Cell: ({ row: { original } }: any) => {
@@ -279,26 +286,38 @@ function ChartList(props: ChartListProps) {
                   onConfirm={handleDelete}
                 >
                   {confirmDelete => (
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      className="action-button"
-                      onClick={confirmDelete}
+                    <TooltipWrapper
+                      label="delete-action"
+                      tooltip={t('Delete')}
+                      placement="bottom"
                     >
-                      <Icon name="trash" />
-                    </span>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className="action-button"
+                        onClick={confirmDelete}
+                      >
+                        <Icon name="trash" />
+                      </span>
+                    </TooltipWrapper>
                   )}
                 </ConfirmStatusChange>
               )}
               {canEdit && (
-                <span
-                  role="button"
-                  tabIndex={0}
-                  className="action-button"
-                  onClick={openEditModal}
+                <TooltipWrapper
+                  label="edit-action"
+                  tooltip={t('Edit')}
+                  placement="bottom"
                 >
-                  <Icon name="pencil" />
-                </span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className="action-button"
+                    onClick={openEditModal}
+                  >
+                    <Icon name="edit-alt" />
+                  </span>
+                </TooltipWrapper>
               )}
             </span>
           );
@@ -308,7 +327,7 @@ function ChartList(props: ChartListProps) {
         disableSortBy: true,
       },
     ],
-    [canEdit, canDelete, favoriteStatusRef],
+    [canEdit, canDelete],
   );
 
   const filters: Filters = [
@@ -324,7 +343,27 @@ function ChartList(props: ChartListProps) {
         createErrorHandler(errMsg =>
           props.addDangerToast(
             t(
-              'An error occurred while fetching chart dataset values: %s',
+              'An error occurred while fetching chart owners values: %s',
+              errMsg,
+            ),
+          ),
+        ),
+      ),
+      paginate: true,
+    },
+    {
+      Header: t('Created By'),
+      id: 'created_by',
+      input: 'select',
+      operator: 'rel_o_m',
+      unfilteredLabel: 'All',
+      fetchSelects: createFetchRelated(
+        'chart',
+        'created_by',
+        createErrorHandler(errMsg =>
+          props.addDangerToast(
+            t(
+              'An error occurred while fetching chart created by values: %s',
               errMsg,
             ),
           ),
@@ -364,7 +403,7 @@ function ChartList(props: ChartListProps) {
       Header: t('Search'),
       id: 'slice_name',
       input: 'search',
-      operator: 'name_or_description',
+      operator: 'chart_all_text',
     },
   ];
 
@@ -406,6 +445,7 @@ function ChartList(props: ChartListProps) {
             >
               {confirmDelete => (
                 <div
+                  data-test="chart-list-delete-option"
                   role="button"
                   tabIndex={0}
                   className="action-button"
@@ -419,11 +459,12 @@ function ChartList(props: ChartListProps) {
         )}
         {canEdit && (
           <Menu.Item
+            data-test="chart-list-edit-option"
             role="button"
             tabIndex={0}
             onClick={() => openChartEditModal(chart)}
           >
-            <ListViewCard.MenuIcon name="pencil" /> Edit
+            <ListViewCard.MenuIcon name="edit-alt" /> Edit
           </Menu.Item>
         )}
       </Menu>
@@ -436,6 +477,7 @@ function ChartList(props: ChartListProps) {
         url={bulkSelectEnabled ? undefined : chart.url}
         imgURL={chart.thumbnail_url ?? ''}
         imgFallbackURL="/static/assets/images/chart-card-fallback.png"
+        imgPosition="bottom"
         description={t('Last modified %s', chart.changed_on_delta_humanized)}
         coverLeft={(chart.owners || []).slice(0, 5).map(owner => (
           <AvatarIcon
@@ -453,28 +495,39 @@ function ChartList(props: ChartListProps) {
         actions={
           <ListViewCard.Actions>
             {renderFaveStar(chart.id)}
-            <Dropdown overlay={menu}>
-              <Icon name="more" />
+            <Dropdown data-test="dropdown-options" overlay={menu}>
+              <Icon name="more-horiz" />
             </Dropdown>
           </ListViewCard.Actions>
         }
       />
     );
   }
-
+  const subMenuButtons: SubMenuProps['buttons'] = [];
+  if (canDelete) {
+    subMenuButtons.push({
+      name: t('Bulk Select'),
+      buttonStyle: 'secondary',
+      onClick: toggleBulkSelect,
+    });
+  }
+  if (canCreate) {
+    subMenuButtons.push({
+      name: (
+        <>
+          {' '}
+          <i className="fa fa-plus" /> {t('Chart')}
+        </>
+      ),
+      buttonStyle: 'primary',
+      onClick: () => {
+        window.location.assign('/chart/add');
+      },
+    });
+  }
   return (
     <>
-      <SubMenu
-        name={t('Charts')}
-        secondaryButton={
-          canDelete
-            ? {
-                name: t('Bulk Select'),
-                onClick: toggleBulkSelect,
-              }
-            : undefined
-        }
-      />
+      <SubMenu name={t('Charts')} buttons={subMenuButtons} />
       {sliceCurrentlyEditing && (
         <PropertiesModal
           onHide={closeChartEditModal}
@@ -517,7 +570,9 @@ function ChartList(props: ChartListProps) {
               pageSize={PAGE_SIZE}
               renderCard={renderCard}
               defaultViewMode={
-                isFeatureEnabled(FeatureFlag.THUMBNAILS) ? 'card' : 'table'
+                isFeatureEnabled(FeatureFlag.LISTVIEWS_DEFAULT_CARD_VIEW)
+                  ? 'card'
+                  : 'table'
               }
             />
           );

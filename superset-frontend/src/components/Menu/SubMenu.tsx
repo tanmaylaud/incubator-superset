@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import React from 'react';
+import React, { ReactNode } from 'react';
 import { Link, useHistory } from 'react-router-dom';
 import { styled } from '@superset-ui/core';
 import { Nav, Navbar, MenuItem } from 'react-bootstrap';
@@ -50,7 +50,6 @@ const StyledHeader = styled.header`
           ${({ theme }) => theme.gridUnit * 4}px;
       }
     }
-
     li.active > a,
     li.active > div,
     li > a:hover,
@@ -69,15 +68,21 @@ type MenuChild = {
   usesRouter?: boolean;
 };
 
+export interface ButtonProps {
+  name: ReactNode;
+  onClick: OnClickHandler;
+  buttonStyle:
+    | 'primary'
+    | 'secondary'
+    | 'dashed'
+    | 'link'
+    | 'warning'
+    | 'success'
+    | 'tertiary';
+}
+
 export interface SubMenuProps {
-  primaryButton?: {
-    name: React.ReactNode;
-    onClick: OnClickHandler;
-  };
-  secondaryButton?: {
-    name: React.ReactNode;
-    onClick: OnClickHandler;
-  };
+  buttons?: Array<ButtonProps>;
   name: string;
   children?: MenuChild[];
   activeChild?: MenuChild['name'];
@@ -89,7 +94,6 @@ export interface SubMenuProps {
 
 const SubMenu: React.FunctionComponent<SubMenuProps> = props => {
   let hasHistory = true;
-
   // If no parent <Router> component exists, useHistory throws an error
   try {
     useHistory();
@@ -97,7 +101,6 @@ const SubMenu: React.FunctionComponent<SubMenuProps> = props => {
     // If error is thrown, we know not to use <Link> in render
     hasHistory = false;
   }
-
   return (
     <StyledHeader>
       <Navbar inverse fluid role="navigation">
@@ -133,24 +136,15 @@ const SubMenu: React.FunctionComponent<SubMenuProps> = props => {
             })}
         </Nav>
         <Nav className="navbar-right">
-          {props.secondaryButton && (
+          {props.buttons?.map((btn, i) => (
             <Button
-              buttonStyle="secondary"
-              onClick={props.secondaryButton.onClick}
-              cta
+              key={`${i}`}
+              buttonStyle={btn.buttonStyle}
+              onClick={btn.onClick}
             >
-              {props.secondaryButton.name}
+              {btn.name}
             </Button>
-          )}
-          {props.primaryButton && (
-            <Button
-              buttonStyle="primary"
-              onClick={props.primaryButton.onClick}
-              cta
-            >
-              {props.primaryButton.name}
-            </Button>
-          )}
+          ))}
         </Nav>
       </Navbar>
     </StyledHeader>

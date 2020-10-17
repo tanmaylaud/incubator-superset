@@ -74,7 +74,7 @@ const sidebarStyle = css`
   border-right: 1px solid #bfbfbf;
 `;
 
-const contentStyle = css`
+const doczLayoutStyle = css`
   margin-top: 3px;
   background-color: white;
   img {
@@ -124,6 +124,22 @@ const contentLayoutDocsStyle = css`
     overflow: auto;
   }
 `;
+const footerHeight = 185;
+const baseLayoutStyle = css`
+  min-height: 100vh;
+  position: relative;
+  .layout-footer {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    height: ${footerHeight}px;
+    overflow: auto; // sorry about this :/
+    background-color: #323232;
+  }
+  .content-wrap {
+    padding-bottom: ${footerHeight}px;
+  }
+`;
 
 interface Props {
   children: React.ReactNode;
@@ -153,7 +169,7 @@ const AppLayout = ({ children }: Props) => {
             <Sider width={leftPaneWidth} css={sidebarStyle}>
               <DoczMenu />
             </Sider>
-            <Layout css={contentStyle}>
+            <Layout css={doczLayoutStyle}>
               <div css={centerLayoutStyle}>
                 <h1 className="doc-hamburger" onClick={() => setDrawer(true)}>
                   <MenuOutlined
@@ -168,9 +184,13 @@ const AppLayout = ({ children }: Props) => {
           </Layout>
         </>
       ) : (
-        <Layout>
-          {children}
-          <Footer />
+        <Layout css={baseLayoutStyle}>
+          <div className="content-wrap">
+            {children}
+          </div>
+          <div className="layout-footer">
+            <Footer />
+          </div>
         </Layout>
       )}
     </Layout>

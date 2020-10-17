@@ -19,7 +19,7 @@
 import React, { FunctionComponent, useState, useRef } from 'react';
 // @ts-ignore
 import { Table } from 'reactable-arc';
-import { Alert, FormControl, Modal } from 'react-bootstrap';
+import { Alert, FormControl, FormControlProps, Modal } from 'react-bootstrap';
 import { SupersetClient, t } from '@superset-ui/core';
 
 import getClientErrorObject from '../utils/getClientErrorObject';
@@ -37,8 +37,8 @@ interface ChangeDatasourceModalProps {
 const TABLE_COLUMNS = ['name', 'type', 'schema', 'connection', 'creator'];
 const TABLE_FILTERABLE = ['rawName', 'type', 'schema', 'connection', 'creator'];
 const CHANGE_WARNING_MSG = t(
-  'Changing the datasource may break the chart if the chart relies ' +
-    'on columns or metadata that does not exist in the target datasource',
+  'Changing the dataset may break the chart if the chart relies ' +
+    'on columns or metadata that does not exist in the target dataset',
 );
 
 const ChangeDatasourceModal: FunctionComponent<ChangeDatasourceModalProps> = ({
@@ -114,14 +114,16 @@ const ChangeDatasourceModal: FunctionComponent<ChangeDatasourceModalProps> = ({
     searchRef = ref;
   };
 
-  const changeSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setFilter(event.target.value);
+  const changeSearch = (
+    event: React.FormEvent<FormControl & FormControlProps>,
+  ) => {
+    setFilter((event.currentTarget?.value as string) ?? '');
   };
 
   return (
     <Modal show={show} onHide={onHide} onEnter={onEnterModal} bsSize="large">
       <Modal.Header closeButton>
-        <Modal.Title>{t('Select a datasource')}</Modal.Title>
+        <Modal.Title>{t('Select a dataset')}</Modal.Title>
       </Modal.Header>
       <Modal.Body>
         <Alert bsStyle="warning">
@@ -136,7 +138,6 @@ const ChangeDatasourceModal: FunctionComponent<ChangeDatasourceModalProps> = ({
             bsSize="sm"
             value={filter}
             placeholder={t('Search / Filter')}
-            // @ts-ignore
             onChange={changeSearch}
           />
         </div>

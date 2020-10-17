@@ -44,10 +44,8 @@ const StyledIcon = styled(Icon)`
 `;
 
 const TableSelectorContainer = styled.div`
-  .TableSelector {
-    padding-bottom: 340px;
-    width: 65%;
-  }
+  padding-bottom: 340px;
+  width: 65%;
 `;
 
 const DatasetModal: FunctionComponent<DatasetModalProps> = ({
@@ -59,7 +57,7 @@ const DatasetModal: FunctionComponent<DatasetModalProps> = ({
 }) => {
   const [currentSchema, setSchema] = useState('');
   const [currentTableName, setTableName] = useState('');
-  const [datasourceId, setDatasourceId] = useState<number | null>(null);
+  const [datasourceId, setDatasourceId] = useState<number>(0);
   const [disableSave, setDisableSave] = useState(true);
 
   const onChange = ({
@@ -115,7 +113,7 @@ const DatasetModal: FunctionComponent<DatasetModalProps> = ({
       show={show}
       title={
         <>
-          <StyledIcon name="warning" />
+          <StyledIcon name="warning-solid" />
           {t('Add Dataset')}
         </>
       }
@@ -128,7 +126,6 @@ const DatasetModal: FunctionComponent<DatasetModalProps> = ({
           handleError={addDangerToast}
           onChange={onChange}
           schema={currentSchema}
-          sqlLabMode={false}
           tableName={currentTableName}
         />
       </TableSelectorContainer>

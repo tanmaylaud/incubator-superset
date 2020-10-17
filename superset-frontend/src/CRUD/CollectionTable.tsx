@@ -29,9 +29,9 @@ interface CRUDCollectionProps {
   allowDeletes?: boolean;
   collection: Array<object>;
   columnLabels?: object;
-  emptyMessage: ReactNode;
-  expandFieldset: ReactNode;
-  extraButtons: ReactNode;
+  emptyMessage?: ReactNode;
+  expandFieldset?: ReactNode;
+  extraButtons?: ReactNode;
   itemGenerator?: () => any;
   itemRenderers?: ((
     val: unknown,
@@ -150,22 +150,17 @@ export default class CRUDCollection extends React.PureComponent<
 
   toggleExpand(id: any) {
     this.onCellChange(id, '__expanded', false);
-    this.setState({
+    this.setState(prevState => ({
       expandedColumns: {
-        ...this.state.expandedColumns,
-        [id]: !this.state.expandedColumns[id],
+        ...prevState.expandedColumns,
+        [id]: !prevState.expandedColumns[id],
       },
-    });
+    }));
   }
 
   renderHeaderRow() {
     const cols = this.effectiveTableColumns();
-    const {
-      allowAddItem,
-      allowDeletes,
-      expandFieldset,
-      extraButtons,
-    } = this.props;
+    const { allowDeletes, expandFieldset, extraButtons } = this.props;
     return (
       <thead>
         <tr>
@@ -174,15 +169,8 @@ export default class CRUDCollection extends React.PureComponent<
             <th key={col}>{this.getLabel(col)}</th>
           ))}
           {extraButtons}
-          {allowDeletes && !allowAddItem && (
+          {allowDeletes && (
             <th key="delete-item" aria-label="Delete" className="tiny-cell" />
-          )}
-          {allowAddItem && (
-            <th key="add-item">
-              <Button buttonStyle="primary" onClick={this.onAddItem}>
-                <i className="fa fa-plus" /> {t('Add Item')}
-              </Button>
-            </th>
           )}
         </tr>
       </thead>
@@ -241,8 +229,9 @@ export default class CRUDCollection extends React.PureComponent<
     }
     if (allowDeletes) {
       tds.push(
-        <td key="__actions">
+        <td key="__actions" data-test="crud-delete-option">
           <i
+            {...{ 'data-test': 'crud-delete-icon' }}
             role="button"
             aria-label="Delete item"
             tabIndex={0}
@@ -253,7 +242,7 @@ export default class CRUDCollection extends React.PureComponent<
       );
     }
     const trs = [
-      <tr className="row" key={record.id}>
+      <tr {...{ 'data-test': 'table-row' }} className="row" key={record.id}>
         {tds}
       </tr>,
     ];
@@ -287,13 +276,25 @@ export default class CRUDCollection extends React.PureComponent<
     const content = data.length
       ? data.map(d => this.renderItem(d))
       : this.renderEmptyCell();
-    return <tbody>{content}</tbody>;
+    return <tbody data-test="table-content-rows">{content}</tbody>;
   }
 
   render() {
     return (
       <div className="CRUD">
-        <table className="table">
+        <span className="float-right m-t-10 m-r-10">
+          {this.props.allowAddItem && (
+            <Button
+              buttonSize="sm"
+              buttonStyle="primary"
+              onClick={this.onAddItem}
+              data-test="add-item-button"
+            >
+              <i className="fa fa-plus" /> {t('Add Item')}
+            </Button>
+          )}
+        </span>
+        <table data-test="crud-table" className="table">
           {this.renderHeaderRow()}
           {this.renderTableBody()}
         </table>

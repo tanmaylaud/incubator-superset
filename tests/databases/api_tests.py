@@ -16,17 +16,30 @@
 # under the License.
 # isort:skip_file
 """Unit tests for Superset"""
+import datetime
 import json
+from io import BytesIO
+from zipfile import is_zipfile
 
+import pandas as pd
 import prison
+import pytest
+import random
+
+from sqlalchemy import String, Date, Float
 from sqlalchemy.sql import func
 
-from superset import db, security_manager
+from superset import db, security_manager, ConnectorRegistry
 from superset.connectors.sqla.models import SqlaTable
 from superset.models.core import Database
 from superset.utils.core import get_example_database, get_main_database
 from tests.base_tests import SupersetTestCase
+from tests.dashboard_utils import (
+    create_table_for_dashboard,
+    create_dashboard,
+)
 from tests.fixtures.certificates import ssl_certificate
+from tests.fixtures.unicode_dashboard import load_unicode_dashboard_with_position
 from tests.test_app import app
 
 
@@ -317,8 +330,8 @@ class TestDatabaseApi(SupersetTestCase):
                 ]
             }
         }
-        self.assertEqual(response.status_code, 400)
         self.assertEqual(response_data, expected_response)
+        self.assertEqual(response.status_code, 400)
 
     def test_create_database_conn_fail(self):
         """
@@ -758,6 +771,7 @@ class TestDatabaseApi(SupersetTestCase):
         }
         self.assertEqual(response, expected_response)
 
+    @pytest.mark.usefixtures("load_unicode_dashboard_with_position")
     def test_get_database_related_objects(self):
         """
         Database API: Test get chart and dashboard count related to a database
@@ -789,3 +803,45 @@ class TestDatabaseApi(SupersetTestCase):
         uri = f"api/v1/database/{database.id}/related_objects/"
         rv = self.client.get(uri)
         self.assertEqual(rv.status_code, 404)
+
+    def test_export_database(self):
+        """
+        Database API: Test export database
+        """
+        self.login(username="admin")
+        database = get_example_database()
+        argument = [database.id]
+        uri = f"api/v1/database/export/?q={prison.dumps(argument)}"
+        rv = self.client.get(uri)
+
+        assert rv.status_code == 200
+
+        buf = BytesIO(rv.data)
+        assert is_zipfile(buf)
+
+    def test_export_database_not_allowed(self):
+        """
+        Database API: Test export database not allowed
+        """
+        self.login(username="gamma")
+        database = get_example_database()
+        argument = [database.id]
+        uri = f"api/v1/database/export/?q={prison.dumps(argument)}"
+        rv = self.client.get(uri)
+
+        assert rv.status_code == 401
+
+    def test_export_database_non_existing(self):
+        """
+        Database API: Test export database not allowed
+        """
+        max_id = db.session.query(func.max(Database.id)).scalar()
+        # id does not exist and we get 404
+        invalid_id = max_id + 1
+
+        self.login(username="admin")
+        argument = [invalid_id]
+        uri = f"api/v1/database/export/?q={prison.dumps(argument)}"
+        rv = self.client.get(uri)
+
+        assert rv.status_code == 404

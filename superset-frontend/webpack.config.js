@@ -265,12 +265,19 @@ const config = {
     },
   },
   resolve: {
+    modules: [APP_DIR, 'node_modules'],
     alias: {
-      src: path.resolve(APP_DIR, './src'),
       'react-dom': '@hot-loader/react-dom',
-      stylesheets: path.resolve(APP_DIR, './stylesheets'),
-      images: path.resolve(APP_DIR, './images'),
-      spec: path.resolve(APP_DIR, './spec'),
+      // force using absolute import path of the @superset-ui/core and @superset-ui/chart-controls
+      // so that we can `npm link` viz plugins without linking these two base packages
+      '@superset-ui/core': path.resolve(
+        APP_DIR,
+        './node_modules/@superset-ui/core',
+      ),
+      '@superset-ui/chart-controls': path.resolve(
+        APP_DIR,
+        './node_modules/@superset-ui/chart-controls',
+      ),
     },
     extensions: ['.ts', '.tsx', '.js', '.jsx'],
     symlinks: false,
@@ -386,6 +393,9 @@ const config = {
       {
         test: /\.(ttf|eot|svg)(\?v=[0-9]\.[0-9]\.[0-9])?$/,
         loader: 'file-loader',
+        options: {
+          esModule: false,
+        },
       },
     ],
   },

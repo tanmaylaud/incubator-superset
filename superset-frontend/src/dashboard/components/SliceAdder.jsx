@@ -39,7 +39,7 @@ const propTypes = {
   lastUpdated: PropTypes.number.isRequired,
   errorMessage: PropTypes.string,
   userId: PropTypes.string.isRequired,
-  selectedSliceIds: PropTypes.arrayOf(PropTypes.number).isRequired,
+  selectedSliceIds: PropTypes.arrayOf(PropTypes.number),
   editMode: PropTypes.bool,
   height: PropTypes.number,
 };
@@ -55,7 +55,7 @@ const KEYS_TO_FILTERS = ['slice_name', 'viz_type', 'datasource_name'];
 const KEYS_TO_SORT = [
   { key: 'slice_name', label: 'Name' },
   { key: 'viz_type', label: 'Vis type' },
-  { key: 'datasource_name', label: 'Datasource' },
+  { key: 'datasource_name', label: 'Dataset' },
   { key: 'changed_on', label: 'Recent' },
 ];
 
@@ -135,23 +135,23 @@ class SliceAdder extends React.Component {
   }
 
   searchUpdated(searchTerm) {
-    this.setState({
+    this.setState(prevState => ({
       searchTerm,
       filteredSlices: this.getFilteredSortedSlices(
         searchTerm,
-        this.state.sortBy,
+        prevState.sortBy,
       ),
-    });
+    }));
   }
 
   handleSelect(sortBy) {
-    this.setState({
+    this.setState(prevState => ({
       sortBy,
       filteredSlices: this.getFilteredSortedSlices(
-        this.state.searchTerm,
+        prevState.searchTerm,
         sortBy,
       ),
-    });
+    }));
   }
 
   rowRenderer({ key, index, style }) {

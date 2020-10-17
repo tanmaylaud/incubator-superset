@@ -61,6 +61,7 @@ const propTypes = {
   showPropertiesModal: PropTypes.func.isRequired,
   refreshLimit: PropTypes.number,
   refreshWarning: PropTypes.string,
+  lastModifiedTime: PropTypes.number.isRequired,
 };
 
 const defaultProps = {
@@ -138,6 +139,7 @@ class HeaderActionsDropdown extends React.PureComponent {
       isLoading,
       refreshLimit,
       refreshWarning,
+      lastModifiedTime,
     } = this.props;
 
     const emailTitle = t('Superset Dashboard');
@@ -146,7 +148,7 @@ class HeaderActionsDropdown extends React.PureComponent {
 
     return (
       <DropdownButton
-        title={<Icon name="more" />}
+        title={<Icon name="more-horiz" />}
         noCaret
         id="save-dash-split-button"
         bsSize="small"
@@ -166,12 +168,15 @@ class HeaderActionsDropdown extends React.PureComponent {
               expandedSlices={expandedSlices}
               refreshFrequency={refreshFrequency}
               shouldPersistRefreshFrequency={shouldPersistRefreshFrequency}
+              lastModifiedTime={lastModifiedTime}
               customCss={customCss}
               colorNamespace={colorNamespace}
               colorScheme={colorScheme}
               onSave={onSave}
               isMenuItem
-              triggerNode={<span>{t('Save as')}</span>}
+              triggerNode={
+                <span data-test="save-as-menu-item">{t('Save as')}</span>
+              }
               canOverwrite={userCanEdit}
             />
           </>

@@ -81,6 +81,9 @@ const MenuItems = ({ mode, toggleDrawer }: menuProps) => {
       <Menu.Item key="docsintro" style={leftStyle} className="menu-lg">
         <Link to="/docs/intro">Documentation</Link>
       </Menu.Item>
+      <Menu.Item key="gallery" style={leftStyle} className="menu-lg">
+        <Link to="/gallery">Gallery</Link>
+      </Menu.Item>
       <Menu.Item key="community" style={leftStyle} className="menu-lg">
         <Link to="/community">Community</Link>
       </Menu.Item>
@@ -130,9 +133,9 @@ export default class MainMenu extends React.Component {
     const { visible } = this.state;
     return (
       <Layout.Header css={headerStyle}>
-        <Link to="/">
+        <a href="https://superset.incubator.apache.org">
           <img height="50" css={logoStyle} src={logoSvg} alt="logo" />
-        </Link>
+        </a>
         <MenuItems toggleDrawer={this.toggleDrawer} mode="horizontal" />
         <Drawer
           title="Menu"

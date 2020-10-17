@@ -54,7 +54,7 @@ const propTypes = {
   dashboardLayout: PropTypes.object.isRequired,
   deleteTopLevelTabs: PropTypes.func.isRequired,
   editMode: PropTypes.bool.isRequired,
-  showBuilderPane: PropTypes.func.isRequired,
+  showBuilderPane: PropTypes.func,
   colorScheme: PropTypes.string,
   setColorSchemeAndUnsavedChanges: PropTypes.func.isRequired,
   handleComponentDrop: PropTypes.func.isRequired,
@@ -223,7 +223,7 @@ class DashboardBuilder extends React.Component {
         </Sticky>
 
         <div className="dashboard-content">
-          <div className="grid-container">
+          <div className="grid-container" data-test="grid-container">
             <ParentSize>
               {({ width }) => (
                 /*

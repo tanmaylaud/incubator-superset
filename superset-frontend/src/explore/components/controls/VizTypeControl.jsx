@@ -19,7 +19,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import {
-  Label,
   Row,
   Col,
   FormControl,
@@ -29,6 +28,7 @@ import {
 } from 'react-bootstrap';
 import { t, getChartMetadataRegistry } from '@superset-ui/core';
 
+import Label from 'src/components/Label';
 import ControlHeader from '../ControlHeader';
 import './VizTypeControl.less';
 
@@ -120,7 +120,7 @@ export default class VizTypeControl extends React.PureComponent {
   }
 
   toggleModal() {
-    this.setState({ showModal: !this.state.showModal });
+    this.setState(prevState => ({ showModal: !prevState.showModal }));
   }
 
   changeSearch(event) {
@@ -151,7 +151,9 @@ export default class VizTypeControl extends React.PureComponent {
           className={`viztype-selector ${isSelected ? 'selected' : ''}`}
           src={type.thumbnail}
         />
-        <div className="viztype-label">{type.name}</div>
+        <div className="viztype-label" data-test="viztype-label">
+          {type.name}
+        </div>
       </div>
     );
   }
@@ -174,7 +176,7 @@ export default class VizTypeControl extends React.PureComponent {
     const rows = [];
     for (let i = 0; i <= filteredTypes.length; i += IMAGE_PER_ROW) {
       rows.push(
-        <Row key={`row-${i}`}>
+        <Row data-test="viz-row" key={`row-${i}`}>
           {filteredTypes.slice(i, i + IMAGE_PER_ROW).map(entry => (
             <Col md={12 / IMAGE_PER_ROW} key={`grid-col-${entry.key}`}>
               {this.renderItem(entry)}

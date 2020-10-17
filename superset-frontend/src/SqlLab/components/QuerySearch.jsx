@@ -35,7 +35,7 @@ import AsyncSelect from '../../components/AsyncSelect';
 
 const propTypes = {
   actions: PropTypes.object.isRequired,
-  height: PropTypes.string.isRequired,
+  height: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
   displayLimit: PropTypes.number.isRequired,
 };
 
@@ -153,14 +153,10 @@ class QuerySearch extends React.PureComponent {
   }
 
   userMutator(data) {
-    const options = [];
-    for (let i = 0; i < data.pks.length; i += 1) {
-      options.push({
-        value: data.pks[i],
-        label: this.userLabel(data.result[i]),
-      });
-    }
-    return options;
+    return data.result.map(({ value, text }) => ({
+      label: text,
+      value,
+    }));
   }
 
   dbMutator(data) {
@@ -209,7 +205,7 @@ class QuerySearch extends React.PureComponent {
         <div id="search-header" className="row space-1">
           <div className="col-sm-2">
             <AsyncSelect
-              dataEndpoint="/users/api/read"
+              dataEndpoint="api/v1/query/related/user"
               mutator={this.userMutator}
               value={this.state.userId}
               onChange={this.changeUser}

@@ -163,7 +163,7 @@ class ChartHolder extends React.Component {
   }
 
   handleToggleFullSize() {
-    this.setState(() => ({ isFullSize: !this.state.isFullSize }));
+    this.setState(prevState => ({ isFullSize: !prevState.isFullSize }));
   }
 
   render() {
@@ -271,6 +271,7 @@ class ChartHolder extends React.Component {
               {editMode && (
                 <HoverMenu position="top">
                   <DeleteComponentButton
+                    data-test="chart-delete-button"
                     onDelete={this.handleDeleteComponent}
                   />
                 </HoverMenu>

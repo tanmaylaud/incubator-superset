@@ -28,14 +28,15 @@ import {
   Tooltip,
   Well,
 } from 'react-bootstrap';
-import { t } from '@superset-ui/core';
+import { t, styled } from '@superset-ui/core';
 import { ColumnOption, MetricOption } from '@superset-ui/chart-controls';
 
-import Label from 'src/components/Label';
 import TooltipWrapper from 'src/components/TooltipWrapper';
 
-import DatasourceModal from 'src/datasource/DatasourceModal';
+import Icon from 'src/components/Icon';
 import ChangeDatasourceModal from 'src/datasource/ChangeDatasourceModal';
+import DatasourceModal from 'src/datasource/DatasourceModal';
+import Label from 'src/components/Label';
 
 import ControlHeader from '../ControlHeader';
 import './DatasourceControl.less';
@@ -55,6 +56,33 @@ const defaultProps = {
   value: null,
   isEditable: true,
 };
+
+const Styles = styled.div`
+  #datasource_menu {
+    margin-left: ${({ theme }) => theme.gridUnit}px;
+    box-shadow: none;
+    &:active {
+      box-shadow: none;
+    }
+  }
+  .btn-group .open .dropdown-toggle {
+    box-shadow: none;
+    &.button-default {
+      background: none;
+    }
+  }
+`;
+
+/**
+ * <Col> used in column details.
+ */
+const ColumnsCol = styled(Col)`
+  overflow: auto; /* for very very long columns names */
+  white-space: nowrap; /* make sure tooltip trigger is on the same line as the metric */
+  .and-more {
+    padding-left: 38px;
+  }
+`;
 
 class DatasourceControl extends React.PureComponent {
   constructor(props) {
@@ -99,6 +127,8 @@ class DatasourceControl extends React.PureComponent {
 
   renderDatasource() {
     const { datasource } = this.props;
+    const { showDatasource } = this.state;
+    const maxNumColumns = 50;
     return (
       <div className="m-t-10">
         <Well className="m-t-0">
@@ -108,49 +138,82 @@ class DatasourceControl extends React.PureComponent {
             </Label>
             {` ${datasource.database.name} `}
           </div>
-          <Row className="datasource-container">
-            <Col md={6}>
-              <strong>Columns</strong>
-              {datasource.columns.map(col => (
-                <div key={col.column_name}>
-                  <ColumnOption showType column={col} />
-                </div>
-              ))}
-            </Col>
-            <Col md={6}>
-              <strong>Metrics</strong>
-              {datasource.metrics.map(m => (
-                <div key={m.metric_name}>
-                  <MetricOption metric={m} showType />
-                </div>
-              ))}
-            </Col>
-          </Row>
+          {showDatasource && (
+            <Row className="datasource-container">
+              <ColumnsCol md={6}>
+                <strong>Columns</strong>
+                {datasource.columns.slice(0, maxNumColumns).map(col => (
+                  <div key={col.column_name}>
+                    <ColumnOption showType column={col} />
+                  </div>
+                ))}
+                {datasource.columns.length > maxNumColumns && (
+                  <div className="and-more">...</div>
+                )}
+              </ColumnsCol>
+              <ColumnsCol md={6}>
+                <strong>Metrics</strong>
+                {datasource.metrics.slice(0, maxNumColumns).map(m => (
+                  <div key={m.metric_name}>
+                    <MetricOption metric={m} showType />
+                  </div>
+                ))}
+                {datasource.columns.length > maxNumColumns && (
+                  <div className="and-more">...</div>
+                )}
+              </ColumnsCol>
+            </Row>
+          )}
         </Well>
       </div>
     );
   }
 
   render() {
-    const { showChangeDatasourceModal, showEditDatasourceModal } = this.state;
+    const {
+      showChangeDatasourceModal,
+      showEditDatasourceModal,
+      showDatasource,
+    } = this.state;
     const { datasource, onChange, value } = this.props;
     return (
-      <div>
+      <Styles className="DatasourceControl">
         <ControlHeader {...this.props} />
-        <div className="btn-group label-dropdown">
+        <div>
+          <OverlayTrigger
+            placement="top"
+            overlay={
+              <Tooltip id="toggle-dataset-tooltip">
+                {t('Expand/collapse dataset configuration')}
+              </Tooltip>
+            }
+          >
+            <Label
+              style={{ textTransform: 'none' }}
+              onClick={this.toggleShowDatasource}
+            >
+              {datasource.name}{' '}
+              <i
+                className={`angle fa fa-angle-${
+                  showDatasource ? 'up' : 'down'
+                }`}
+              />
+            </Label>
+          </OverlayTrigger>
           <TooltipWrapper
             label="change-datasource"
-            tooltip={t('Click to change the datasource')}
+            tooltip={t('More dataset related options')}
             trigger={['hover']}
           >
             <DropdownButton
-              title={datasource.name}
-              className="label label-default label-btn m-r-5"
+              title={<Icon name="more-horiz" />}
+              className=""
               bsSize="sm"
               id="datasource_menu"
+              data-test="datasource-menu"
             >
               <MenuItem eventKey="3" onClick={this.toggleChangeDatasourceModal}>
-                {t('Change Datasource')}
+                {t('Change Dataset')}
               </MenuItem>
               {datasource.type === 'table' && (
                 <MenuItem
@@ -163,49 +226,37 @@ class DatasourceControl extends React.PureComponent {
                 </MenuItem>
               )}
               {this.props.isEditable && (
-                <MenuItem eventKey="3" onClick={this.toggleEditDatasourceModal}>
-                  {t('Edit Datasource')}
+                <MenuItem
+                  data-test="edit-dataset"
+                  eventKey="3"
+                  onClick={this.toggleEditDatasourceModal}
+                >
+                  {t('Edit Dataset')}
                 </MenuItem>
               )}
             </DropdownButton>
           </TooltipWrapper>
-          <OverlayTrigger
-            placement="right"
-            overlay={
-              <Tooltip id="toggle-datasource-tooltip">
-                {t('Expand/collapse datasource configuration')}
-              </Tooltip>
-            }
-          >
-            <a href="#">
-              <i
-                role="button"
-                aria-label="Toggle datasource visibility"
-                tabIndex={0}
-                className={`fa fa-${
-                  this.state.showDatasource ? 'minus' : 'plus'
-                }-square m-r-5 m-l-5 m-t-4`}
-                onClick={this.toggleShowDatasource}
-              />
-            </a>
-          </OverlayTrigger>
         </div>
         <Collapse in={this.state.showDatasource}>
           {this.renderDatasource()}
         </Collapse>
-        <DatasourceModal
-          datasource={datasource}
-          show={showEditDatasourceModal}
-          onDatasourceSave={this.onDatasourceSave}
-          onHide={this.toggleEditDatasourceModal}
-        />
-        <ChangeDatasourceModal
-          onDatasourceSave={this.onDatasourceSave}
-          onHide={this.toggleChangeDatasourceModal}
-          show={showChangeDatasourceModal}
-          onChange={onChange}
-        />
-      </div>
+        {showEditDatasourceModal && (
+          <DatasourceModal
+            datasource={datasource}
+            show={showEditDatasourceModal}
+            onDatasourceSave={this.onDatasourceSave}
+            onHide={this.toggleEditDatasourceModal}
+          />
+        )}
+        {showChangeDatasourceModal && (
+          <ChangeDatasourceModal
+            onDatasourceSave={this.onDatasourceSave}
+            onHide={this.toggleChangeDatasourceModal}
+            show={showChangeDatasourceModal}
+            onChange={onChange}
+          />
+        )}
+      </Styles>
     );
   }
 }

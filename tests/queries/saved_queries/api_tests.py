@@ -21,18 +21,19 @@ from typing import Optional
 
 import pytest
 import prison
-from sqlalchemy.sql import func, asc
+from sqlalchemy.sql import func, and_
 
 import tests.test_app
-from superset import db, security_manager
+from superset import db
 from superset.models.core import Database
+from superset.models.core import FavStar
 from superset.models.sql_lab import SavedQuery
 from superset.utils.core import get_example_database
 
 from tests.base_tests import SupersetTestCase
 
 
-SAVED_QUERIES_FIXTURE_COUNT = 5
+SAVED_QUERIES_FIXTURE_COUNT = 10
 
 
 class TestSavedQueryApi(SupersetTestCase):
@@ -43,6 +44,7 @@ class TestSavedQueryApi(SupersetTestCase):
         db_id: Optional[int] = None,
         created_by=None,
         schema: Optional[str] = "",
+        description: Optional[str] = "",
     ) -> SavedQuery:
         database = None
         if db_id:
@@ -53,6 +55,7 @@ class TestSavedQueryApi(SupersetTestCase):
             sql=sql,
             label=label,
             schema=schema,
+            description=description,
         )
         db.session.add(query)
         db.session.commit()
@@ -69,12 +72,14 @@ class TestSavedQueryApi(SupersetTestCase):
             db_id=example_db.id,
             created_by=admin,
             schema=schema,
+            description="cool description",
         )
 
     @pytest.fixture()
     def create_saved_queries(self):
         with self.create_app().app_context():
             saved_queries = []
+            admin = self.get_user("admin")
             for cx in range(SAVED_QUERIES_FIXTURE_COUNT - 1):
                 saved_queries.append(
                     self.insert_default_saved_query(
@@ -89,11 +94,22 @@ class TestSavedQueryApi(SupersetTestCase):
                 )
             )
 
+            fav_saved_queries = []
+            for cx in range(round(SAVED_QUERIES_FIXTURE_COUNT / 2)):
+                fav_star = FavStar(
+                    user_id=admin.id, class_name="query", obj_id=saved_queries[cx].id
+                )
+                db.session.add(fav_star)
+                db.session.commit()
+                fav_saved_queries.append(fav_star)
+
             yield saved_queries
 
             # rollback changes
             for saved_query in saved_queries:
                 db.session.delete(saved_query)
+            for fav_saved_query in fav_saved_queries:
+                db.session.delete(fav_saved_query)
             db.session.commit()
 
     @pytest.mark.usefixtures("create_saved_queries")
@@ -113,10 +129,13 @@ class TestSavedQueryApi(SupersetTestCase):
         data = json.loads(rv.data.decode("utf-8"))
         assert data["count"] == len(saved_queries)
         expected_columns = [
+            "changed_on_delta_humanized",
+            "created_on",
             "created_by",
             "database",
             "db_id",
             "description",
+            "id",
             "label",
             "schema",
             "sql",
@@ -194,6 +213,147 @@ class TestSavedQueryApi(SupersetTestCase):
         assert rv.status_code == 200
         data = json.loads(rv.data.decode("utf-8"))
         assert data["count"] == len(all_queries)
+
+    @pytest.mark.usefixtures("create_saved_queries")
+    def test_get_list_custom_filter_schema_saved_query(self):
+        """
+        Saved Query API: Test get list and custom filter (schema) saved query
+        """
+        self.login(username="admin")
+        admin = self.get_user("admin")
+
+        all_queries = (
+            db.session.query(SavedQuery)
+            .filter(SavedQuery.created_by == admin)
+            .filter(SavedQuery.schema.ilike("%2%"))
+            .all()
+        )
+        query_string = {
+            "filters": [{"col": "label", "opr": "all_text", "value": "schema2"}],
+        }
+        uri = f"api/v1/saved_query/?q={prison.dumps(query_string)}"
+        rv = self.get_assert_metric(uri, "get_list")
+        assert rv.status_code == 200
+        data = json.loads(rv.data.decode("utf-8"))
+        assert data["count"] == len(all_queries)
+
+    @pytest.mark.usefixtures("create_saved_queries")
+    def test_get_list_custom_filter_label_saved_query(self):
+        """
+        Saved Query API: Test get list and custom filter (label) saved query
+        """
+        self.login(username="admin")
+        admin = self.get_user("admin")
+        all_queries = (
+            db.session.query(SavedQuery)
+            .filter(SavedQuery.created_by == admin)
+            .filter(SavedQuery.label.ilike("%3%"))
+            .all()
+        )
+        query_string = {
+            "filters": [{"col": "label", "opr": "all_text", "value": "label3"}],
+        }
+        uri = f"api/v1/saved_query/?q={prison.dumps(query_string)}"
+        rv = self.get_assert_metric(uri, "get_list")
+        assert rv.status_code == 200
+        data = json.loads(rv.data.decode("utf-8"))
+        assert data["count"] == len(all_queries)
+
+    @pytest.mark.usefixtures("create_saved_queries")
+    def test_get_list_custom_filter_sql_saved_query(self):
+        """
+        Saved Query API: Test get list and custom filter (sql) saved query
+        """
+        self.login(username="admin")
+        admin = self.get_user("admin")
+        all_queries = (
+            db.session.query(SavedQuery)
+            .filter(SavedQuery.created_by == admin)
+            .filter(SavedQuery.sql.ilike("%table%"))
+            .all()
+        )
+        query_string = {
+            "filters": [{"col": "label", "opr": "all_text", "value": "table"}],
+        }
+        uri = f"api/v1/saved_query/?q={prison.dumps(query_string)}"
+        rv = self.get_assert_metric(uri, "get_list")
+        assert rv.status_code == 200
+        data = json.loads(rv.data.decode("utf-8"))
+        assert data["count"] == len(all_queries)
+
+    @pytest.mark.usefixtures("create_saved_queries")
+    def test_get_list_custom_filter_description_saved_query(self):
+        """
+        Saved Query API: Test get list and custom filter (description) saved query
+        """
+        self.login(username="admin")
+        admin = self.get_user("admin")
+        all_queries = (
+            db.session.query(SavedQuery)
+            .filter(SavedQuery.created_by == admin)
+            .filter(SavedQuery.description.ilike("%cool%"))
+            .all()
+        )
+        query_string = {
+            "filters": [{"col": "label", "opr": "all_text", "value": "cool"}],
+        }
+        uri = f"api/v1/saved_query/?q={prison.dumps(query_string)}"
+        rv = self.get_assert_metric(uri, "get_list")
+        assert rv.status_code == 200
+        data = json.loads(rv.data.decode("utf-8"))
+        assert data["count"] == len(all_queries)
+
+    @pytest.mark.usefixtures("create_saved_queries")
+    def test_get_saved_query_favorite_filter(self):
+        """
+        SavedQuery API: Test get saved queries favorite filter
+        """
+        admin = self.get_user("admin")
+        users_favorite_query = db.session.query(FavStar.obj_id).filter(
+            and_(FavStar.user_id == admin.id, FavStar.class_name == "query")
+        )
+        expected_models = (
+            db.session.query(SavedQuery)
+            .filter(and_(SavedQuery.id.in_(users_favorite_query)))
+            .order_by(SavedQuery.label.asc())
+            .all()
+        )
+
+        arguments = {
+            "filters": [{"col": "id", "opr": "saved_query_is_fav", "value": True}],
+            "order_column": "label",
+            "order_direction": "asc",
+            "keys": ["none"],
+            "columns": ["label"],
+        }
+        self.login(username="admin")
+        uri = f"api/v1/saved_query/?q={prison.dumps(arguments)}"
+        rv = self.client.get(uri)
+        data = json.loads(rv.data.decode("utf-8"))
+        assert rv.status_code == 200
+        assert len(expected_models) == data["count"]
+
+        for i, expected_model in enumerate(expected_models):
+            assert expected_model.label == data["result"][i]["label"]
+
+        # Test not favorite saves queries
+        expected_models = (
+            db.session.query(SavedQuery)
+            .filter(
+                and_(
+                    ~SavedQuery.id.in_(users_favorite_query),
+                    SavedQuery.created_by == admin,
+                )
+            )
+            .order_by(SavedQuery.label.asc())
+            .all()
+        )
+        arguments["filters"][0]["value"] = False
+        uri = f"api/v1/saved_query/?q={prison.dumps(arguments)}"
+        rv = self.client.get(uri)
+        data = json.loads(rv.data.decode("utf-8"))
+        assert rv.status_code == 200
+        assert len(expected_models) == data["count"]
 
     def test_info_saved_query(self):
         """
@@ -281,7 +441,7 @@ class TestSavedQueryApi(SupersetTestCase):
         expected_result = {
             "id": saved_query.id,
             "database": {"id": saved_query.database.id, "database_name": "examples"},
-            "description": None,
+            "description": "cool description",
             "created_by": {
                 "first_name": saved_query.created_by.first_name,
                 "id": saved_query.created_by.id,

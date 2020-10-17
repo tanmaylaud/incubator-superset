@@ -81,7 +81,7 @@ class DashboardDAO(BaseDAO):
             raise ex
 
     @staticmethod
-    def set_dash_metadata(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    def set_dash_metadata(
         dashboard: Dashboard,
         data: Dict[Any, Any],
         old_to_new_slice_ids: Optional[Dict[int, int]] = None,
@@ -98,6 +98,17 @@ class DashboardDAO(BaseDAO):
         current_slices = session.query(Slice).filter(Slice.id.in_(slice_ids)).all()
 
         dashboard.slices = current_slices
+
+        # add UUID to positions
+        uuid_map = {slice.id: str(slice.uuid) for slice in current_slices}
+        for obj in positions.values():
+            if (
+                isinstance(obj, dict)
+                and obj["type"] == "CHART"
+                and obj["meta"]["chartId"]
+            ):
+                chart_id = obj["meta"]["chartId"]
+                obj["meta"]["uuid"] = uuid_map.get(chart_id)
 
         # remove leading and trailing white spaces in the dumped json
         dashboard.position_json = json.dumps(

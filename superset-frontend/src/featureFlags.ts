@@ -27,7 +27,7 @@ export enum FeatureFlag {
   SHARE_QUERIES_VIA_KV_STORE = 'SHARE_QUERIES_VIA_KV_STORE',
   SQLLAB_BACKEND_PERSISTENCE = 'SQLLAB_BACKEND_PERSISTENCE',
   THUMBNAILS = 'THUMBNAILS',
-  SIP_34_SAVED_QUERIES_UI = 'SIP_34_SAVED_QUERIES_UI',
+  LISTVIEWS_DEFAULT_CARD_VIEW = 'LISTVIEWS_DEFAULT_CARD_VIEW',
 }
 
 export type FeatureFlagMap = {
@@ -38,6 +38,8 @@ export type FeatureFlagMap = {
 declare global {
   interface Window {
     featureFlags: FeatureFlagMap;
+    $: any;
+    jQuery: any;
   }
 }
 

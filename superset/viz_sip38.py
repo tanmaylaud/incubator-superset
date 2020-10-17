@@ -1275,8 +1275,8 @@ class NVD3TimeSeriesViz(NVD3Viz):
             if not query_object["from_dttm"] or not query_object["to_dttm"]:
                 raise QueryObjectValidationError(
                     _(
-                        "`Since` and `Until` time bounds should be specified "
-                        "when using the `Time Shift` feature."
+                        "An enclosed time range (both start and end) must be specified "
+                        "when using a Time Comparison."
                     )
                 )
             query_object["from_dttm"] -= delta
@@ -2201,7 +2201,7 @@ class BaseDeckGLViz(BaseViz):
             return None
         try:
             p = Point(s)
-            return (p.latitude, p.longitude)  # pylint: disable=no-member
+            return (p.latitude, p.longitude)
         except Exception:
             raise SpatialException(_("Invalid spatial point encountered: %s" % s))
 

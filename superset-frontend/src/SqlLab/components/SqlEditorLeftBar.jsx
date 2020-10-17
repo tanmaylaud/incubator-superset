@@ -25,7 +25,7 @@ import TableSelector from '../../components/TableSelector';
 
 const propTypes = {
   queryEditor: PropTypes.object.isRequired,
-  height: PropTypes.number.isRequired,
+  height: PropTypes.number,
   tables: PropTypes.array,
   actions: PropTypes.object,
   database: PropTypes.object,
@@ -120,17 +120,18 @@ export default class SqlEditorLeftBar extends React.PureComponent {
     return (
       <div className="SqlEditorLeftBar">
         <TableSelector
+          database={this.props.database}
           dbId={qe.dbId}
-          schema={qe.schema}
+          getDbList={this.getDbList}
+          handleError={this.props.actions.addDangerToast}
           onDbChange={this.onDbChange}
           onSchemaChange={this.onSchemaChange}
           onSchemasLoad={this.onSchemasLoad}
-          onTablesLoad={this.onTablesLoad}
-          getDbList={this.getDbList}
           onTableChange={this.onTableChange}
+          onTablesLoad={this.onTablesLoad}
+          schema={qe.schema}
+          sqlLabMode
           tableNameSticky={false}
-          database={this.props.database}
-          handleError={this.props.actions.addDangerToast}
         />
         <div className="divider" />
         <div className="scrollbar-container">

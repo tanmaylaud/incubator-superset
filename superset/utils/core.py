@@ -31,6 +31,7 @@ import traceback
 import uuid
 import zlib
 from datetime import date, datetime, time, timedelta
+from distutils.util import strtobool
 from email.mime.application import MIMEApplication
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
@@ -310,8 +311,9 @@ class DashboardEncoder(json.JSONEncoder):
         super().__init__(*args, **kwargs)
         self.sort_keys = True
 
-    # pylint: disable=E0202
-    def default(self, o: Any) -> Dict[Any, Any]:
+    def default(self, o: Any) -> Union[Dict[Any, Any], str]:
+        if isinstance(o, uuid.UUID):
+            return str(o)
         try:
             vals = {k: v for k, v in o.__dict__.items() if k != "_sa_instance_state"}
             return {"__{}__".format(o.__class__.__name__): vals}
@@ -1040,24 +1042,7 @@ def backend() -> str:
 
 
 def is_adhoc_metric(metric: Metric) -> bool:
-    if not isinstance(metric, dict):
-        return False
-    metric = cast(Dict[str, Any], metric)
-    return bool(
-        (
-            (
-                metric.get("expressionType") == AdhocMetricExpressionType.SIMPLE
-                and metric.get("column")
-                and cast(Dict[str, Any], metric["column"]).get("column_name")
-                and metric.get("aggregate")
-            )
-            or (
-                metric.get("expressionType") == AdhocMetricExpressionType.SQL
-                and metric.get("sqlExpression")
-            )
-        )
-        and metric.get("label")
-    )
+    return isinstance(metric, dict)
 
 
 def get_metric_name(metric: Metric) -> str:
@@ -1434,6 +1419,17 @@ def get_column_names_from_metrics(metrics: List[Metric]) -> List[str]:
     return columns
 
 
+def indexed(
+    items: List[Any], key: Union[str, Callable[[Any], Any]]
+) -> Dict[Any, List[Any]]:
+    """Build an index for a list of objects"""
+    idx: Dict[Any, Any] = {}
+    for item in items:
+        key_ = getattr(item, key) if isinstance(key, str) else key(item)
+        idx.setdefault(key_, []).append(item)
+    return idx
+
+
 class LenientEnum(Enum):
     """Enums that do not raise ValueError when value is invalid"""
 
@@ -1564,3 +1560,12 @@ class PostProcessingContributionOrientation(str, Enum):
 class AdhocMetricExpressionType(str, Enum):
     SIMPLE = "SIMPLE"
     SQL = "SQL"
+
+
+class RowLevelSecurityFilterType(str, Enum):
+    REGULAR = "Regular"
+    BASE = "Base"
+
+
+def is_test() -> bool:
+    return strtobool(os.environ.get("SUPERSET_TESTENV", "false"))

@@ -21,14 +21,17 @@ import yaml
 from flask import g, request, Response
 from flask_appbuilder.api import expose, protect, rison, safe
 from flask_appbuilder.models.sqla.interface import SQLAInterface
+from flask_babel import ngettext
 from marshmallow import ValidationError
 
 from superset.connectors.sqla.models import SqlaTable
 from superset.constants import RouteMethod
 from superset.databases.filters import DatabaseFilter
+from superset.datasets.commands.bulk_delete import BulkDeleteDatasetCommand
 from superset.datasets.commands.create import CreateDatasetCommand
 from superset.datasets.commands.delete import DeleteDatasetCommand
 from superset.datasets.commands.exceptions import (
+    DatasetBulkDeleteFailedError,
     DatasetCreateFailedError,
     DatasetDeleteFailedError,
     DatasetForbiddenError,
@@ -44,6 +47,7 @@ from superset.datasets.schemas import (
     DatasetPostSchema,
     DatasetPutSchema,
     DatasetRelatedObjectsResponse,
+    get_delete_ids_schema,
     get_export_ids_schema,
 )
 from superset.views.base import DatasourceFilter, generate_download_headers
@@ -68,6 +72,7 @@ class DatasetRestApi(BaseSupersetModelRestApi):
         RouteMethod.EXPORT,
         RouteMethod.RELATED,
         RouteMethod.DISTINCT,
+        "bulk_delete",
         "refresh",
         "related_objects",
     }
@@ -216,9 +221,7 @@ class DatasetRestApi(BaseSupersetModelRestApi):
     @protect()
     @safe
     @statsd_metrics
-    def put(  # pylint: disable=too-many-return-statements, arguments-differ
-        self, pk: int
-    ) -> Response:
+    def put(self, pk: int) -> Response:
         """Changes a Dataset
         ---
         put:
@@ -270,24 +273,25 @@ class DatasetRestApi(BaseSupersetModelRestApi):
             return self.response_400(message=error.messages)
         try:
             changed_model = UpdateDatasetCommand(g.user, pk, item).run()
-            return self.response(200, id=changed_model.id, result=item)
+            response = self.response(200, id=changed_model.id, result=item)
         except DatasetNotFoundError:
-            return self.response_404()
+            response = self.response_404()
         except DatasetForbiddenError:
-            return self.response_403()
+            response = self.response_403()
         except DatasetInvalidError as ex:
-            return self.response_422(message=ex.normalized_messages())
+            response = self.response_422(message=ex.normalized_messages())
         except DatasetUpdateFailedError as ex:
             logger.error(
                 "Error updating model %s: %s", self.__class__.__name__, str(ex)
             )
-            return self.response_422(message=str(ex))
+            response = self.response_422(message=str(ex))
+        return response
 
     @expose("/<pk>", methods=["DELETE"])
     @protect()
     @safe
     @statsd_metrics
-    def delete(self, pk: int) -> Response:  # pylint: disable=arguments-differ
+    def delete(self, pk: int) -> Response:
         """Deletes a Dataset
         ---
         delete:
@@ -490,3 +494,62 @@ class DatasetRestApi(BaseSupersetModelRestApi):
             charts={"count": len(charts), "result": charts},
             dashboards={"count": len(dashboards), "result": dashboards},
         )
+
+    @expose("/", methods=["DELETE"])
+    @protect()
+    @safe
+    @statsd_metrics
+    @rison(get_delete_ids_schema)
+    def bulk_delete(self, **kwargs: Any) -> Response:
+        """Delete bulk Datasets
+        ---
+        delete:
+          description: >-
+            Deletes multiple Datasets in a bulk operation.
+          parameters:
+          - in: query
+            name: q
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/get_delete_ids_schema'
+          responses:
+            200:
+              description: Dataset bulk delete
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+            400:
+              $ref: '#/components/responses/400'
+            401:
+              $ref: '#/components/responses/401'
+            403:
+              $ref: '#/components/responses/403'
+            404:
+              $ref: '#/components/responses/404'
+            422:
+              $ref: '#/components/responses/422'
+            500:
+              $ref: '#/components/responses/500'
+        """
+        item_ids = kwargs["rison"]
+        try:
+            BulkDeleteDatasetCommand(g.user, item_ids).run()
+            return self.response(
+                200,
+                message=ngettext(
+                    "Deleted %(num)d dataset",
+                    "Deleted %(num)d datasets",
+                    num=len(item_ids),
+                ),
+            )
+        except DatasetNotFoundError:
+            return self.response_404()
+        except DatasetForbiddenError:
+            return self.response_403()
+        except DatasetBulkDeleteFailedError as ex:
+            return self.response_422(message=str(ex))

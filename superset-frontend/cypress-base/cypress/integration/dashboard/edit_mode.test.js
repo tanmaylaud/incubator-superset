@@ -23,10 +23,10 @@ describe('Dashboard edit mode', () => {
     cy.server();
     cy.login();
     cy.visit(WORLD_HEALTH_DASHBOARD);
-    cy.get('.dashboard-header [data-test=pencil]').click();
+    cy.get('.dashboard-header [data-test=edit-alt]').click();
   });
 
-  it('remove, and add chart flow', () => {
+  xit('remove, and add chart flow', () => {
     // wait for box plot to appear
     cy.get('.grid-container .box_plot');
 
@@ -39,6 +39,9 @@ describe('Dashboard edit mode', () => {
       });
 
     cy.get('.tabs-components .nav-tabs li a').contains('Charts').click();
+
+    // wait for tab-switching animation to complete
+    cy.wait(1000);
 
     // find box plot is available from list
     cy.get('.tabs-components')

@@ -88,40 +88,41 @@ export default class AdhocMetricEditPopover extends React.Component {
   }
 
   onColumnChange(column) {
-    this.setState({
-      adhocMetric: this.state.adhocMetric.duplicateWith({
+    this.setState(prevState => ({
+      adhocMetric: prevState.adhocMetric.duplicateWith({
         column,
         expressionType: EXPRESSION_TYPES.SIMPLE,
       }),
-    });
+    }));
   }
 
   onAggregateChange(aggregate) {
     // we construct this object explicitly to overwrite the value in the case aggregate is null
-    this.setState({
-      adhocMetric: this.state.adhocMetric.duplicateWith({
+    this.setState(prevState => ({
+      adhocMetric: prevState.adhocMetric.duplicateWith({
         aggregate,
         expressionType: EXPRESSION_TYPES.SIMPLE,
       }),
-    });
+    }));
   }
 
   onSqlExpressionChange(sqlExpression) {
-    this.setState({
-      adhocMetric: this.state.adhocMetric.duplicateWith({
+    this.setState(prevState => ({
+      adhocMetric: prevState.adhocMetric.duplicateWith({
         sqlExpression,
         expressionType: EXPRESSION_TYPES.SQL,
       }),
-    });
+    }));
   }
 
   onLabelChange(e) {
-    this.setState({
-      adhocMetric: this.state.adhocMetric.duplicateWith({
-        label: e.target.value,
+    const label = e.target.value;
+    this.setState(prevState => ({
+      adhocMetric: prevState.adhocMetric.duplicateWith({
+        label,
         hasCustomLabel: true,
       }),
-    });
+    }));
   }
 
   onDragDown(e) {
@@ -224,10 +225,16 @@ export default class AdhocMetricEditPopover extends React.Component {
     const stateIsValid = adhocMetric.isValid();
     const hasUnsavedChanges = !adhocMetric.equals(propsAdhocMetric);
     return (
-      <Popover id="metrics-edit-popover" title={popoverTitle} {...popoverProps}>
+      <Popover
+        id="metrics-edit-popover"
+        data-test="metrics-edit-popover"
+        title={popoverTitle}
+        {...popoverProps}
+      >
         <ThemeProvider theme={theme}>
           <Tabs
             id="adhoc-metric-edit-tabs"
+            data-test="adhoc-metric-edit-tabs"
             defaultActiveKey={adhocMetric.expressionType}
             className="adhoc-metric-edit-tabs"
             style={{ height: this.state.height, width: this.state.width }}
@@ -268,7 +275,7 @@ export default class AdhocMetricEditPopover extends React.Component {
               data-test="adhoc-metric-edit-tab#custom"
             >
               {this.props.datasourceType !== 'druid' ? (
-                <FormGroup>
+                <FormGroup data-test="sql-editor">
                   <SQLEditor
                     showLoadingForImport
                     ref={this.handleAceEditorRef}

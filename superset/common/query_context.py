@@ -224,7 +224,7 @@ class QueryContext:
                     status = utils.QueryStatus.SUCCESS
                     is_loaded = True
                     stats_logger.incr("loaded_from_cache")
-                except Exception as ex:  # pylint: disable=broad-except
+                except KeyError as ex:
                     logger.exception(ex)
                     logger.error(
                         "Error reading cache: %s", utils.error_msg_from_exception(ex)
@@ -237,7 +237,6 @@ class QueryContext:
                     col
                     for col in query_obj.columns
                     + query_obj.groupby
-                    + [flt["col"] for flt in query_obj.filter]
                     + utils.get_column_names_from_metrics(query_obj.metrics)
                     if col not in self.datasource.column_names
                 ]
